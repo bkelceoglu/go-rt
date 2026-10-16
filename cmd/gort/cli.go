@@ -17,6 +17,7 @@ type parsedCLI struct {
 	Kind        cliCommandKind
 	ConfigPath  string
 	TargetArg   string
+	AIGenerate  bool
 	DatasetArgs []string
 }
 
@@ -24,23 +25,27 @@ func parseCLIArgs(args []string) parsedCLI {
 	if len(args) == 0 {
 		return parsedCLI{Kind: cmdHelp}
 	}
-	if kind, target := detectSubcommand(args); kind != "" {
-		return parsedCLI{Kind: kind, TargetArg: target}
+	if parsed, ok := detectSubcommand(args); ok {
+		return parsed
 	}
 	return parseRunArgs(args)
 }
 
-func detectSubcommand(args []string) (cliCommandKind, string) {
+func detectSubcommand(args []string) (parsedCLI, bool) {
 	var kind cliCommandKind
 	var extra []string
+	cfgPath := "config.yaml"
+	aiGen := false
 	for _, raw := range args {
 		a := strings.TrimSpace(raw)
 		lower := strings.ToLower(a)
 		switch lower {
 		case "help", "--help", "-h":
-			return cmdHelp, ""
+			return parsedCLI{Kind: cmdHelp}, true
 		case "version", "--version", "-v":
-			return cmdVersion, ""
+			return parsedCLI{Kind: cmdVersion}, true
+		case "--ai", "-a":
+			aiGen = true
 		case "plugins", "plugin", "--list-plugins", "--plugins", "-p":
 			kind = cmdListPlugins
 		case "ls", "list", "datasets", "dataset", "--list-datasets", "--datasets", "-l":
@@ -48,18 +53,23 @@ func detectSubcommand(args []string) (cliCommandKind, string) {
 				kind = cmdListDatasets
 			}
 		case "pull", "sync", "--pull-datasets", "--pull":
-			return cmdPullDatasets, ""
+			return parsedCLI{Kind: cmdPullDatasets}, true
 		default:
-			if !isYAMLPath(a) {
+			if isYAMLPath(a) {
+				cfgPath = a
+			} else {
 				extra = append(extra, a)
 			}
 		}
+	}
+	if kind == "" {
+		return parsedCLI{}, false
 	}
 	target := ""
 	if len(extra) > 0 {
 		target = extra[0]
 	}
-	return kind, target
+	return parsedCLI{Kind: kind, TargetArg: target, ConfigPath: cfgPath, AIGenerate: aiGen}, true
 }
 
 func parseRunArgs(args []string) parsedCLI {

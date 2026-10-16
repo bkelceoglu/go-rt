@@ -5,7 +5,7 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0 & Faz 1 (+ SQLite Katalog, `prompt_bank` & Ergonomik CLI) Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 2 (Hedef & Hakem LLM İstemcileri & Grader Motoru)**
+- **Aktif Faz:** Faz 0, Faz 1 ve Faz 2 Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 3 (OpenTelemetry GenAI & Çoklu Veritabanı Katmanı: SQLite + PostgreSQL 18+)**
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
@@ -52,8 +52,8 @@
 | `internal/plugin` | SQLite tabanlı 155 plugin & 14 koleksiyon çözümleyici (`catalog.go`) | Katalog Hazır ✅ (LLM Üretici Faz 4) |
 | `internal/dataset` | Otomatik Bootstrap, HF/GitHub/OWASP indirici, `prompt_bank` & CSV senkronizasyonu | Tamamlandı ✅ |
 | `internal/template` | SSTI-korumalı şablonlama (`SafeRenderer`) ve `injectVar` çıkarımı | Tamamlandı ✅ |
-| `internal/provider` | Ollama, vLLM, OpenAI, Webhook istemcileri, RateLimiter ve Agentic Decorator'lar | Faz 2 & 5'te yazılacak ⏳ |
-| `internal/grader` | `notContains`, `IsBasicRefusal` ve `gort:grader:rubric` Hakem LLM değerlendiricisi | Faz 2'de yazılacak ⏳ |
+| `internal/provider` | Ollama, vLLM, OpenAI, Webhook istemcileri ve RateLimiter (`Provider` arayüzü) | Tamamlandı ✅ (Faz 5 Agentic Decorator) |
+| `internal/grader` | Çoklu dil `notContains`, `IsBasicRefusal` ve `RubricGrader` Hakem LLM değerlendiricisi | Tamamlandı ✅ |
 | `internal/telemetry` | OTel GenAI `TraceID`/`SpanID` üretici ve OTLP exporter | Faz 3'te yazılacak ⏳ |
 | `internal/strategy` | Statik mutasyonlar ve multi-turn strateji sarmalayıcıları (`gort:strategy:*`) | Faz 5'te yazılacak ⏳ |
 | `internal/engine` | `HybridSynthesizer` ve paralel OTel-destekli `Evaluator` | Faz 4'te yazılacak ⏳ |

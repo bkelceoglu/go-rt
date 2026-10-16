@@ -17,6 +17,7 @@ func TestParseCLIArgsErgonomics(t *testing.T) {
 		{[]string{"--list-datasets"}, cmdListDatasets, "", "", 0},
 		{[]string{"plugins"}, cmdListPlugins, "", "", 0},
 		{[]string{"plugins", "1"}, cmdListPlugins, "1", "", 0},
+		{[]string{"plugins", "1", "--ai"}, cmdListPlugins, "1", "", 0},
 		{[]string{"plugins", "gort:plugin:aegis"}, cmdListPlugins, "gort:plugin:aegis", "", 0},
 		{[]string{"ls", "plugins"}, cmdListPlugins, "", "", 0},
 		{[]string{"pull"}, cmdPullDatasets, "", "", 0},

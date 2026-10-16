@@ -87,7 +87,7 @@ func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader
 		return printDatasetCatalog(db)
 	case cmdListPlugins:
 		if parsed.TargetArg != "" {
-			return inspectPluginDetail(db, parsed.TargetArg)
+			return inspectPluginDetail(db, parsed.TargetArg, parsed.AIGenerate, parsed.ConfigPath)
 		}
 		return printPluginCatalog(db)
 	case cmdPullDatasets:

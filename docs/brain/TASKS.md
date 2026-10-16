@@ -26,12 +26,12 @@
 
 ---
 
-## Faz 2: Hedef & Hakem LLM İstemcileri (Ollama, vLLM, OpenAI, Webhook) & Grader Motoru ⏳
-- [ ] `internal/provider/ollama_openai.go`: Sıfır dış bağımlılıklı (`net/http` + `bufio.Scanner`) Ollama (`llama3.1:8b`, `qwen2.5:3b`), vLLM ve OpenAI-uyumlu istemci
-- [ ] `internal/provider/webhook.go`: Özel REST/Webhook chat ve judge servisleri (`headers`, `bodyTemplate` ve `responsePath` destekli) istemcisi
-- [ ] `internal/provider/ratelimit.go`: Provider bazlı `rate.Limiter` + Semafor kuyruğu
-- [ ] `internal/grader/refusal.go` & `rubric.go`: Deterministik `notContains` / `IsBasicRefusal` kontrolleri ve Attribution-korumalı `gort:grader:rubric` Hakem LLM değerlendiricisi
-- [ ] `cmd/gort/inspector.go` (`--ai` eklentisi): İsteğe bağlı olarak `gort plugins <id> --ai` çağrıldığında offline karta ek olarak canlı örnek saldırı üretimi
+## Faz 2: Hedef & Hakem LLM İstemcileri (Ollama, vLLM, OpenAI, Webhook) & Grader Motoru ✅
+- [x] `internal/provider/openai_compatible.go`: Sıfır dış bağımlılıklı (`net/http`) Ollama (`llama3.1:8b`, `qwen2.5:3b`), vLLM ve resmi OpenAI (`api.openai.com`) uyumlu, ortam değişkeni öncelikli istemci
+- [x] `internal/provider/webhook.go`: Özel REST/Webhook chat ve API Gateway servisleri (`headers`, `bodyTemplate` ve `responsePath` destekli) istemcisi
+- [x] `internal/provider/ratelimit.go`: Token-bucket hız sınırı (`rate.Limiter`) + eşzamanlılık semafor kalkanı (`RateLimitedProvider` decorator)
+- [x] `internal/grader/refusal.go` & `rubric.go`: Çoklu dil destekli deterministik `notContains` / `IsBasicRefusal` kontrolleri ve `RubricGrader` LLM-as-a-Judge Hakem değerlendiricisi
+- [x] `cmd/gort/inspector.go` (`--ai` eklentisi): `gort plugins <id> --ai` çağrıldığında offline karta ek olarak sağlayıcı üzerinden canlı örnek saldırı üretimi
 
 ---
 
