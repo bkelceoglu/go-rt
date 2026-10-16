@@ -93,4 +93,14 @@ func TestResolveModelNameAndBaseURL(t *testing.T) {
 	if resolveBaseURL("ollama:llama3", "") != "http://localhost:11434/v1" {
 		t.Errorf("failed resolving default ollama base url")
 	}
+
+	t.Setenv("OLLAMA_BASE_URL", "http://gpu-rig.local:11434/v1")
+	if resolveBaseURL("ollama:llama3", "") != "http://gpu-rig.local:11434/v1" {
+		t.Errorf("failed resolving env OLLAMA_BASE_URL")
+	}
+
+	t.Setenv("OPENAI_BASE_URL", "https://custom-gateway.internal/v1")
+	if resolveBaseURL("openai:chat:gpt-4o", "") != "https://custom-gateway.internal/v1" {
+		t.Errorf("failed resolving env OPENAI_BASE_URL")
+	}
 }

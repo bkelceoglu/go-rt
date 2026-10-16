@@ -150,9 +150,30 @@ func resolveBaseURL(id, explicit string) string {
 	if explicit != "" {
 		return strings.TrimRight(explicit, "/")
 	}
+	if envURL := resolveEnvBaseURL(id); envURL != "" {
+		return strings.TrimRight(envURL, "/")
+	}
+	return defaultBaseURL(id)
+}
+
+func resolveEnvBaseURL(id string) string {
 	switch {
 	case strings.HasPrefix(id, "ollama"):
-		return "http://localhost:11434/v1"
+		if v := os.Getenv("OLLAMA_BASE_URL"); v != "" {
+			return v
+		}
+		return os.Getenv("OLLAMA_HOST")
+	case strings.HasPrefix(id, "openai"):
+		return os.Getenv("OPENAI_BASE_URL")
+	case strings.HasPrefix(id, "vllm"):
+		return os.Getenv("VLLM_BASE_URL")
+	default:
+		return ""
+	}
+}
+
+func defaultBaseURL(id string) string {
+	switch {
 	case strings.HasPrefix(id, "openai"):
 		return "https://api.openai.com/v1"
 	case strings.HasPrefix(id, "vllm"):
