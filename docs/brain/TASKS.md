@@ -35,10 +35,10 @@
 
 ---
 
-## Faz 3: OpenTelemetry (OTel) GenAI & SQLite Depolama Katmanı (`.gort/gort.db`) ⏳
-- [ ] `internal/telemetry/tracer.go`: W3C `TraceID`/`SpanID` üretici, `gen_ai.*` ve `gort.*` semantik özniteliklerini formatlayan OTel Tracer modülü
-- [ ] `internal/store/sqlite_eval.go`: SQLite `.gort/gort.db` içindeki `eval_runs`, `eval_results`, `otel_spans` tablolarına test sonuçlarını ve telemetriyi kaydeden/sorgulayan `SQLiteResultStore` (`domain.ResultStore`)
-- [ ] `internal/store/eval_test.go`: Değerlendirme koşumlarının, sonuçlarının ve OTel span'lerinin SQLite üzerinde sorgulanabilirlik birim testleri
+## Faz 3: OpenTelemetry (OTel) GenAI & SQLite Depolama Katmanı (`.gort/gort.db`) ✅
+- [x] `internal/telemetry/tracer.go`: W3C `TraceID`/`SpanID` üretici, `gen_ai.*` ve `gort.*` semantik özniteliklerini formatlayan OTel Tracer modülü
+- [x] `internal/store/sqlite_eval.go`: SQLite `.gort/gort.db` içindeki `eval_runs`, `eval_results`, `otel_spans` tablolarına test sonuçlarını ve telemetriyi kaydeden/sorgulayan `SQLiteResultStore` (`domain.ResultStore`)
+- [x] `internal/store/eval_test.go`: Değerlendirme koşumlarının, sonuçlarının ve OTel span'lerinin SQLite üzerinde sorgulanabilirlik birim testleri
 
 ---
 
