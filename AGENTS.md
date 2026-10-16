@@ -49,3 +49,18 @@ Hem `agy` hem de `antigravity-ide` aynı kod tabanı üzerinde çalıştığınd
 4. **Yapılandırılmış Eşzamanlılık (Structured Concurrency):**
    - Her I/O fonksiyonu ilk parametre olarak `ctx context.Context` alır.
    - Paralel işlemler için `golang.org/x/sync/errgroup` veya kontrollü worker pool kullan.
+
+---
+
+## 🎯 4. Mikro-Adım (Micro-Step) Geliştirme ve Doğrulama Protokolü (`ADR-013`)
+
+1. **Böl, İnşa Et, Doğrula (Split, Build, Verify):**
+   - Karmaşık fazlar tek seferde devasa bloklar halinde değil; **izole, tek sorumluluklu mikro-adımlara** bölünerek geliştirilir.
+   - Her mikro-adımda:
+     a) Yalnızca hedeflenen tek bir dosya/fonksiyon yazılır/güncellenir.
+     b) Birim testi (`*_test.go`) eklenir.
+     c) `make all` çalıştırılarak derleme, `go vet` ve testlerin **Yeşil** olduğu doğrulanır.
+     d) Çalışma Git commit'i ile güvenceye alınır.
+2. **Uzak OpenAI & Yerel Ollama Çift Yönlü Standart:**
+   - Provider motoru sadece yerel Ollama değil; uzaktaki resmi **OpenAI (`api.openai.com`)**, Azure OpenAI, uzak vLLM/LiteLLM/Groq/DeepSeek ve yerel Ollama API'lerini standart `net/http` ve SSE/JSON protokolleriyle sıfır harici bağımlılıkla tam destekler.
+

@@ -60,3 +60,9 @@
   1. **ANSI CLI Çıktıları (`internal/ui`):** Harici kütüphane eklemeden Go standart kütüphanesiyle ANSI renklendirme (`BoldCyan`, `Badge`, `PadRightVisible`) sağlanır; pipe/yönlendirme veya `NO_COLOR` tespit edildiğinde otomatik olarak saf metne geri döner ve görünür karakter uzunluğuna göre tablo sütunlarını milimetrik hizalı tutar.
   2. **Web UI Zamanlaması ve Mimarisi (Faz 6):** Web UI, CLI motoru (Faz 2 $\rightarrow$ Faz 5) tamamen bitip test edildikten sonra **en son adım (Faz 6)** olarak eklenecektir. Temel motor paketlerinde (`internal/*`) hiçbir UI mantığı bulunmaz; Web UI (`internal/webui`), motoru ve `.gort/gort.db` veritabanını dışarıdan sarmalayan (**full-encapsulation**) bir katmandır ve tek `gort` binary'si içine `//go:embed` ile gömülecektir.
 - **Gerekçe:** Clean Architecture prensibini korumak, önce çekirdek motoru CLI üzerinden kaya gibi sağlamlaştırmak, ardından arayüzü ek bir iş mantığı üretmeden saf bir sunum katmanı olarak bağlamak.
+
+## ADR-013: Mikro-Adım (Micro-Step) Geliştirme ve Çoklu-Uç Nokta (OpenAI & Ollama) Sağlayıcı Standardı
+- **Karar:**
+  1. **Geliştirme Metodolojisi:** Kod tabanında büyük sıçramalar yerine, her biri tek sorumluluğa sahip mikro-adımlarla (Dosya $\rightarrow$ Birim Testi $\rightarrow$ `make all` $\rightarrow$ Git Commit) ilerlenecektir.
+  2. **Çift Yönlü Sağlayıcı (Provider) Desteği:** `internal/provider` katmanı yalnızca yerel `ollama` değil, doğrudan uzaktaki resmi **OpenAI (`api.openai.com`)**, Azure OpenAI, uzak vLLM, Groq, LiteLLM ve DeepSeek API'lerini standart HTTP `v1/chat/completions` REST ve SSE protokolleriyle tam olarak destekleyecektir.
+- **Gerekçe:** Kod kalitesinde ve mimarisinde model geçişlerinden kaynaklanabilecek olası sapmaları sıfıra indirmek ve hem yerel hem de kurumsal bulut AI uç noktalarını eşit güçte test edebilmek.
