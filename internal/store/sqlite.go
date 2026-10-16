@@ -72,6 +72,7 @@ func OpenSQLite(dbPath string) (*SQLiteStore, error) {
 }
 
 func (s *SQLiteStore) bootstrap() error {
+	s.migrateLegacySchema()
 	if _, err := s.db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("exec schema.sql: %w", err)
 	}
@@ -79,6 +80,14 @@ func (s *SQLiteStore) bootstrap() error {
 		return fmt.Errorf("exec seed_catalog.sql: %w", err)
 	}
 	return nil
+}
+
+func (s *SQLiteStore) migrateLegacySchema() {
+	var count int
+	err := s.db.QueryRow(`SELECT count(*) FROM pragma_table_info('eval_results') WHERE name = 'eval_id'`).Scan(&count)
+	if err == nil && count == 0 {
+		_, _ = s.db.Exec(`DROP TABLE IF EXISTS eval_results; DROP TABLE IF EXISTS eval_runs; DROP TABLE IF EXISTS otel_spans;`)
+	}
 }
 
 // Close closes the underlying SQLite connection.
