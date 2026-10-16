@@ -1,0 +1,270 @@
+package dataset
+
+import (
+	"context"
+	"encoding/csv"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/caveman/go-rt/internal/domain"
+	"github.com/caveman/go-rt/internal/store"
+)
+
+// NamedDataset represents a named prompt set retrieved from SQLite prompt_bank.
+type NamedDataset struct {
+	Name    string
+	Records []domain.DatasetRecord
+}
+
+// ResolveDatasets resolves one or more named prompt sets (or "all" for every set in prompt_bank).
+func ResolveDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir string, args []string) ([]NamedDataset, error) {
+	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
+		return nil, fmt.Errorf("ensure prompts dir %s: %w", promptsDir, err)
+	}
+	if len(args) == 1 && strings.EqualFold(args[0], "all") {
+		return resolveAllDatasets(ctx, db, promptsDir)
+	}
+	var out []NamedDataset
+	for _, arg := range args {
+		ds, err := resolveSingleDataset(ctx, db, promptsDir, arg)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ds)
+	}
+	return out, nil
+}
+
+func resolveAllDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir string) ([]NamedDataset, error) {
+	syncLocalCSVsToPromptBank(ctx, db, promptsDir)
+	summaries, err := db.ListDatasets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []NamedDataset
+	for _, s := range summaries {
+		if recs, err := db.LoadDatasetPrompts(ctx, s.DatasetName); err == nil && len(recs) > 0 {
+			out = append(out, NamedDataset{Name: s.DatasetName, Records: recs})
+		}
+	}
+	return out, nil
+}
+
+func syncLocalCSVsToPromptBank(ctx context.Context, db *store.SQLiteStore, promptsDir string) {
+	matches, _ := filepath.Glob(filepath.Join(promptsDir, "*.csv"))
+	for _, path := range matches {
+		name := normalizeDatasetName(path)
+		if recs, err := ReadCSV(path); err == nil && len(recs) > 0 {
+			_ = db.SaveDatasetPrompts(ctx, name, recs)
+		}
+	}
+}
+
+func resolveSingleDataset(ctx context.Context, db *store.SQLiteStore, promptsDir, arg string) (NamedDataset, error) {
+	if strings.HasPrefix(strings.TrimSpace(arg), "-") {
+		return NamedDataset{}, fmt.Errorf("invalid dataset name %q (looks like a CLI flag)", arg)
+	}
+	name := normalizeDatasetName(arg)
+	if recs, err := db.LoadDatasetPrompts(ctx, name); err == nil && len(recs) > 0 {
+		ensureCSVExport(promptsDir, arg, name, recs)
+		return NamedDataset{Name: name, Records: recs}, nil
+	}
+	return loadOrSeedMissingDataset(ctx, db, promptsDir, arg, name)
+}
+
+func loadOrSeedMissingDataset(ctx context.Context, db *store.SQLiteStore, promptsDir, arg, name string) (NamedDataset, error) {
+	csvPath := resolveCSVPath(promptsDir, arg, name)
+	if recs, err := ReadCSV(csvPath); err == nil && len(recs) > 0 {
+		_ = db.SaveDatasetPrompts(ctx, name, recs)
+		return NamedDataset{Name: name, Records: recs}, nil
+	}
+	if !strings.HasSuffix(strings.ToLower(arg), ".csv") {
+		return NamedDataset{}, fmt.Errorf("dataset %q not found (run 'gort ls' to list available datasets)", arg)
+	}
+	seed, err := db.LoadDatasetPrompts(ctx, "enterprise_security_suite")
+	if err != nil || len(seed) == 0 {
+		return NamedDataset{}, fmt.Errorf("dataset %s not found and seed empty", name)
+	}
+	_ = db.SaveDatasetPrompts(ctx, name, seed)
+	_ = WriteCSV(csvPath, seed)
+	return NamedDataset{Name: name, Records: seed}, nil
+}
+
+func normalizeDatasetName(arg string) string {
+	base := filepath.Base(strings.TrimSpace(arg))
+	ext := filepath.Ext(base)
+	if ext != "" {
+		base = strings.TrimSuffix(base, ext)
+	}
+	return base
+}
+
+func resolveCSVPath(promptsDir, arg, name string) string {
+	if strings.HasSuffix(strings.ToLower(arg), ".csv") || strings.Contains(arg, "/") {
+		return arg
+	}
+	return filepath.Join(promptsDir, name+".csv")
+}
+
+func ensureCSVExport(promptsDir, arg, name string, recs []domain.DatasetRecord) {
+	csvPath := resolveCSVPath(promptsDir, arg, name)
+	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
+		_ = os.MkdirAll(filepath.Dir(csvPath), 0o755)
+		_ = WriteCSV(csvPath, recs)
+	}
+}
+
+// StratifiedSample selects up to n records balanced evenly across categories.
+func StratifiedSample(records []domain.DatasetRecord, n int) []domain.DatasetRecord {
+	if n <= 0 || len(records) <= n {
+		return records
+	}
+	byCat := groupRecordsByCategory(records)
+	return pickRoundRobin(byCat, n)
+}
+
+func groupRecordsByCategory(records []domain.DatasetRecord) map[string][]domain.DatasetRecord {
+	grouped := make(map[string][]domain.DatasetRecord)
+	for _, r := range records {
+		grouped[r.Category] = append(grouped[r.Category], r)
+	}
+	return grouped
+}
+
+func pickRoundRobin(byCat map[string][]domain.DatasetRecord, limit int) []domain.DatasetRecord {
+	var out []domain.DatasetRecord
+	for len(out) < limit {
+		added := false
+		for cat, list := range byCat {
+			if len(list) > 0 && len(out) < limit {
+				out = append(out, list[0])
+				byCat[cat] = list[1:]
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+	return out
+}
+
+// WriteCSV writes standardized DatasetRecords (`prompt,category,attack_type,source`) to path.
+func WriteCSV(path string, records []domain.DatasetRecord) error {
+	cleaned := Deduplicate(records)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create csv %s: %w", path, err)
+	}
+	defer file.Close()
+	return writeCSVRecords(file, cleaned)
+}
+
+func writeCSVRecords(file *os.File, records []domain.DatasetRecord) error {
+	writer := csv.NewWriter(file)
+	if err := writer.Write([]string{"prompt", "category", "attack_type", "source"}); err != nil {
+		return err
+	}
+	for _, r := range records {
+		if err := writer.Write([]string{r.Prompt, r.Category, r.AttackType, r.Source}); err != nil {
+			return err
+		}
+	}
+	writer.Flush()
+	return writer.Error()
+}
+
+// ReadCSV reads a standardized GORT CSV dataset file into DatasetRecords.
+func ReadCSV(path string) ([]domain.DatasetRecord, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open csv %s: %w", path, err)
+	}
+	defer file.Close()
+	rows, err := csv.NewReader(file).ReadAll()
+	if err != nil || len(rows) < 2 {
+		return nil, fmt.Errorf("read csv %s: %w", path, err)
+	}
+	return parseStandardRows(rows[0], rows[1:]), nil
+}
+
+func parseStandardRows(header []string, rows [][]string) []domain.DatasetRecord {
+	pIdx, cIdx := findColumnIndices(header, "prompt", "category")
+	_, aIdx := findColumnIndices(header, "prompt", "attack_type")
+	_, sIdx := findColumnIndices(header, "prompt", "source")
+	if pIdx < 0 {
+		pIdx = 0
+	}
+	var out []domain.DatasetRecord
+	for _, row := range rows {
+		if pIdx < len(row) {
+			out = append(out, buildRecordFromRow(row, pIdx, cIdx, aIdx, sIdx))
+		}
+	}
+	return Deduplicate(out)
+}
+
+func buildRecordFromRow(row []string, pIdx, cIdx, aIdx, sIdx int) domain.DatasetRecord {
+	return domain.DatasetRecord{
+		Prompt:     strings.TrimSpace(row[pIdx]),
+		Category:   safeCol(row, cIdx, "gort:plugin:general"),
+		AttackType: safeCol(row, aIdx, "Adversarial Probe"),
+		Source:     safeCol(row, sIdx, "Custom-Dataset"),
+	}
+}
+
+func safeCol(row []string, idx int, fallback string) string {
+	if idx >= 0 && idx < len(row) && strings.TrimSpace(row[idx]) != "" {
+		return strings.TrimSpace(row[idx])
+	}
+	return fallback
+}
+
+// Deduplicate filters prompts shorter than 6 characters and removes duplicate prompt texts.
+func Deduplicate(records []domain.DatasetRecord) []domain.DatasetRecord {
+	seen := make(map[string]struct{}, len(records))
+	var out []domain.DatasetRecord
+	for _, r := range records {
+		trimmed := strings.TrimSpace(r.Prompt)
+		if len(trimmed) <= 5 {
+			continue
+		}
+		if _, exists := seen[trimmed]; !exists {
+			seen[trimmed] = struct{}{}
+			r.Prompt = trimmed
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// RecordsToTestCases converts standardized DatasetRecords into executable domain.TestCases.
+func RecordsToTestCases(records []domain.DatasetRecord, injectVar string) []domain.TestCase {
+	if injectVar == "" {
+		injectVar = "prompt"
+	}
+	cases := make([]domain.TestCase, 0, len(records))
+	for i, rec := range records {
+		cases = append(cases, recordToSingleTestCase(i, rec, injectVar))
+	}
+	return cases
+}
+
+func recordToSingleTestCase(index int, rec domain.DatasetRecord, injectVar string) domain.TestCase {
+	return domain.TestCase{
+		ID:     fmt.Sprintf("ds-%04d", index+1),
+		Vars:   domain.Vars{injectVar: rec.Prompt},
+		Assert: []domain.Assertion{{Type: "gort:grader:rubric", Metric: rec.Category}},
+		Metadata: domain.Metadata{
+			PluginID:  rec.Category,
+			Goal:      rec.Prompt,
+			Severity:  domain.SeverityHigh,
+			Modifiers: map[string]string{"attack_type": rec.AttackType, "source": rec.Source},
+		},
+	}
+}

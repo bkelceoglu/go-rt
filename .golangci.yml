@@ -1,0 +1,23 @@
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - revive
+    - funlen
+    - gocyclo
+
+linters-settings:
+  funlen:
+    lines: 25
+    statements: 15
+  gocyclo:
+    min-complexity: 10

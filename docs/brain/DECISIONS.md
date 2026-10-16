@@ -1,0 +1,56 @@
+# GO-RT Shared Brain — Architecture Decision Records (ADR)
+
+> **Kural:** Hem `agy` hem de `antigravity-ide` buradaki mimari kararlara uymak zorundadır. Yeni bir mimari karar alındığında buraya yeni bir `ADR-00X` maddesi eklenir.
+
+---
+
+## ADR-001: Dil ve Derleyici Standartları (Go 1.27+, Sıfır CGO)
+- **Karar:** Proje Go 1.27+ standartlarıyla, `CGO_ENABLED=0` uyumlu olarak geliştirilecektir.
+- **Gerekçe:** Harici C++ derleme sorunlarını ve Python/Pandas çalışma zamanı bağımlılıklarını ortadan kaldırmak, <15 MB RAM tüketimi ve tek bir statik binary (`gort`) ile her ortamda anında çalışmasını sağlamak.
+
+## ADR-002: Atomic Functions (10–15 Satır Sınırı) ve Pure Domain
+- **Karar:** Fonksiyonlar tek bir görev yapmalı ve 10–15 satırı geçmemelidir. Sıralı adımlar yorum satırları yerine açıklayıcı `private` yardımcı fonksiyonlara bölünmelidir. `internal/domain` paketi hiçbir dış kütüphaneye bağımlı olmamalıdır.
+- **Gerekçe:** Hem insan okuyucu hem de AI ajanları (`agy` ve `antigravity-ide`) için sıfır bilişsel yük, kolay birim testi ve kod stili bütünlüğü.
+
+## ADR-003: Agentic Multi-Turn Stratejiler İçin Provider Decorator Pattern
+- **Karar:** `gort:strategy:crescendo`, `gort:strategy:goat`, `gort:strategy:hydra` gibi çok turlu stratejiler doğrudan `domain.Provider` arayüzünü implemente eden ve gerçek hedef `domain.Provider`'ı sarmalayan (wrap eden) Decorator struct'ları olarak yazılacaktır.
+- **Gerekçe:** Evaluator motorunun strateji detaylarını bilmesine gerek kalmaz (`Open/Closed Principle`). Her strateji kendi konuşma hafızasını, backtracking (geri sarma) ve unblocking mantığını izole olarak yönetir.
+
+## ADR-004: İki Aşamalı SSTI-Korumalı Şablon Enjeksiyonu (`SafeRenderer`)
+- **Karar:** Saldırı değişkeni (`injectVar`) şablon motoruna doğrudan değişken olarak verilmeyecek; önce şablon diğer değişkenlerle render edilip `injectVar` yerinde benzersiz bir boundary token bırakılacak, ardından `strings.ReplaceAll` ile ham saldırı metni yerleştirilecektir.
+- **Gerekçe:** Saldırı payload'ları içinde yer alan `{{...}}` veya `{% ... %}` ifadelerinin `gort` şablon motorunu tetiklemesini (self-SSTI) %100 oranında engellemek.
+
+## ADR-005: Yerel `gort:*` İsimlendirme Standardı ve Gömülü YAML Kataloğu (`//go:embed`)
+- **Karar:** Müşteri veya üçüncü parti araç isimlendirmeleri kullanılmayacaktır. Tüm eklenti, strateji, grader ve telemetri kimlikleri kendi `gort:*` isim alanımızı (`gort:plugin:sql-injection`, `gort:strategy:crescendo`, `gort:grader:rubric`, `.gort/gort.db`) kullanacaktır.
+- **Gerekçe:** Kendi bağımsız kurumsal ürün standardımızı oluşturmak.
+
+## ADR-006: Paylaşımlı Beyin (Shared Brain) Senkronizasyonu
+- **Karar:** `agy` (CLI) ve `antigravity-ide` kendi oturum loglarını kendi dizinlerinde tutsa da, projenin kalıcı beyni `~/codes/go-rt/docs/brain/` dizinidir. Her iki ajan da `AGENTS.md` kuralları gereği bu dizini okur ve günceller.
+
+## ADR-007: Koşullu Prompt Besleme, Kullanıcı Onaylı Attacker LLM ve CLI Sözleşmesi
+- **Karar:**
+  1. **Veri Seti Dosyası Verildiğinde (`gort config.yaml prompts/hedehude.csv`):** Sadece argüman olarak verilen prompt veri seti dosyası kullanılır; Attacker LLM devreye **girmez**. Dosya veya `prompts/` klasörü yoksa otomatik oluşturulur/indirilir.
+  2. **Veri Seti Dosyası Verilmediğinde (`gort config.yaml`):** Attacker LLM **sadece** CLI'da prompt dosyası argümanı verilmediğinde devreye girer. Devreye girmeden önce `config.yaml` içindeki `plugins` ID listesi (`gort:plugin:*`) ve üretilecek prompt sayısı ekrana listelenir ve kullanıcıdan onay (`[y/N]`) alınır; üretilen promptlar `prompts/` klasörüne kaydedilerek koşturulur.
+- **Gerekçe:** Gereksiz LLM maliyetini/beklemesini önlemek ve kullanıcıya hangi plugin'lerle dinamik prompt üretileceğini şeffafça onaylatmak.
+
+## ADR-008: OpenTelemetry (OTel) GenAI Uyumlu Çoklu Veritabanı Saklama Katmanı
+- **Karar:** Tüm değerlendirme çalışmaları (`EvalRun`), test sonuçları (`EvalResult`), çok turlu konuşma geçmişleri ve model çağrıları **OpenTelemetry GenAI Semantic Conventions (`gen_ai.*` ve `gort.*`)** standardına uygun `TraceID` ve `SpanID` ile etiketlenecek; `domain.ResultStore` arayüzü üzerinden hem **SQLite** (`.gort/gort.db`), hem **PostgreSQL 18+** (`JSONB` & `vector`), hem de **OTLP Exporter** hedeflerine yazılabilecektir.
+- **Gerekçe:** Hem taşınabilir yerel SQLite hem merkezi PostgreSQL analitiği hem de kurumsal OTel/APM sistemleriyle tam uyumluluk.
+
+## ADR-009: Hard-Coded Veri Yerine SQLite Katalog & İsimlendirilmiş `prompt_bank` (`dataset_name` & `all`)
+- **Karar:**
+  1. Go kaynak dosyalarında hard-coded plugin listesi, koleksiyon haritası, veri seti URL'leri veya sabit prompt dizileri tutulmaz. Tüm bu katalog verileri `internal/store/schema.sql` ve `seed_catalog.sql` ile `.gort/gort.db` (SQLite) içindeki `plugins`, `plugin_collections`, `dataset_sources` ve `prompt_bank` tablolarında saklanır.
+  2. `prompt_bank` tablosunda her prompt seti `dataset_name` (örn. `lakera_gandalf`, `harmbench_functional`, `enterprise_security_suite`, `hedehude`) sütunuyla ayrıştırılır.
+  3. Kullanıcı `gort [config.yaml] <dataset_name>` (veya `prompts/hedehude.csv`) dediğinde sadece o isimli set koşturulur; `gort [config.yaml] all` dediğinde `prompt_bank` içindeki tüm veri setleri sırayla tek tek koşturulur.
+- **Gerekçe:** Go kodunu %100 saf motor mantığı olarak tutmak, yeniden derleme gerektirmeden veritabanından plugin/veri seti yönetebilmek ve isim bazlı (`<dataset_name>` veya `all`) esnek test koşumu sağlamak.
+
+## ADR-010: Ergonomik CLI Alt Komutları, Tablo Görünümü (`gort ls 1`) ve Offline Plugin Kartları (`gort plugins 1`)
+- **Karar:**
+  1. CLI argüman çözümleyici (`cmd/gort/cli.go`) kısa alt komutları (`ls`, `plugins`, `pull`) ve opsiyonel `config.yaml` kullanımını (`gort lakera_gandalf` $\rightarrow$ otomatik `config.yaml`) destekler.
+  2. `gort ls <numara|isim>` (örn. `gort ls 1` veya `gort ls advbench_harmful_goals`) seçilen veri setinin içindeki promptları formatlı terminal tablosu olarak basar (`cmd/gort/inspector.go`).
+  3. `gort plugins <numara|id>` (örn. `gort plugins 1` veya `gort plugins gort:plugin:aegis`) SQLite `plugins` tablosundan anlık (0 ms, %100 offline) olarak plugin açıklamasını, tehdit vektörünü, Judge kriterini ve kopyalanabilir `config.yaml` kullanım bloğunu basar.
+- **Gerekçe:** Güvenlik uzmanının terminalden ayrılmadan tüm veri setlerini ve 155 plugini sıfır gecikmeyle (ve offline/air-gapped ortamlarda bile) inceleyebilmesi.
+
+## ADR-011: Uygulama Dili Standardı (%100 İngilizce Uygulama, Kod, Log ve Konfigürasyon)
+- **Karar:** Geliştirici ile sohbet Türkçe yürütülse dahi, `gort` uygulamasının kendisi (tüm CLI çıktıları, tablo başlıkları, hata mesajları, interaktif onay soruları, Go yorum satırları, SQL şemaları ve `config.yaml` içeriği) **%100 İngilizce** olmak zorundadır.
+- **Gerekçe:** Kurumsal uluslararası ürün standardı, OpenTelemetry / log analitiği uyumluluğu ve kod tabanı dil bütünlüğü.
