@@ -12,7 +12,9 @@ import (
 	"github.com/caveman/go-rt/internal/config"
 	"github.com/caveman/go-rt/internal/dataset"
 	"github.com/caveman/go-rt/internal/domain"
+	"github.com/caveman/go-rt/internal/engine"
 	"github.com/caveman/go-rt/internal/plugin"
+	"github.com/caveman/go-rt/internal/provider"
 	"github.com/caveman/go-rt/internal/store"
 	"github.com/caveman/go-rt/internal/template"
 	"github.com/caveman/go-rt/internal/ui"
@@ -189,11 +191,15 @@ func executeDatasetFlow(configPath string, cfg *domain.Config, db *store.SQLiteS
 	if err != nil {
 		return err
 	}
-	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
-	fmt.Printf("[gort] Loaded Config   : %s | Targets: %d | Judge: %s | Active Plugins: %d | Strategies: %d (%s)\n",
-		configPath, len(cfg.Targets), cfg.Judge.ID, len(cfg.Redteam.Plugins), len(cfg.Strategies), joinStrategyIDs(cfg.Strategies))
+	fmt.Printf("%s Loaded Config   : %s | Targets: %d | Judge: %s | Active Plugins: %d | Strategies: %d (%s)\n",
+		ui.PrefixGort(), configPath, len(cfg.Targets), cfg.Judge.ID, len(cfg.Redteam.Plugins), len(cfg.Strategies), joinStrategyIDs(cfg.Strategies))
+
+	judgeProvider := buildJudgeProvider(cfg.Judge)
+	evaluator := engine.NewEvaluator(db, judgeProvider, cfg.Judge.Rubric, cfg.MaxConcurrency)
 	for i, set := range sets {
-		runSingleNamedSet(i+1, len(sets), cfg, injectVar, set)
+		if err := runSingleNamedSet(i+1, len(sets), cfg, evaluator, set); err != nil {
+			fmt.Printf("%s Error executing prompt set %s: %v\n", ui.PrefixGort(), set.Name, err)
+		}
 	}
 	return nil
 }
@@ -206,15 +212,60 @@ func joinStrategyIDs(strategies []domain.StrategySpec) string {
 	return strings.Join(ids, ", ")
 }
 
-func runSingleNamedSet(idx, total int, cfg *domain.Config, injectVar string, set dataset.NamedDataset) {
+func runSingleNamedSet(idx, total int, cfg *domain.Config, evaluator *engine.Evaluator, set dataset.NamedDataset) error {
+	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	cases := dataset.RecordsToTestCases(set.Records, injectVar)
-	renderer := template.NewSafeRenderer(injectVar)
-	fmt.Printf("[gort] [%d/%d] Running Prompt Set %q : %d prompts (from SQLite prompt_bank)\n",
-		idx, total, set.Name, len(cases))
-	if len(cases) > 0 {
-		sample := renderer.Render(cfg.PromptTemplate, cases[0].Vars)
-		fmt.Printf("       Sample Rendered: %.85s...\n", sample)
+	fmt.Printf("\n%s [%d/%d] Running Prompt Set %s : %s prompts (via SQLite prompt_bank)\n",
+		ui.PrefixGort(), idx, total, ui.BoldCyan(set.Name), ui.BoldGreen(fmt.Sprintf("%d", len(cases))))
+
+	ctx := context.Background()
+	for _, targetSpec := range cfg.Targets {
+		target := buildProviderFromSpec(targetSpec)
+		fmt.Printf("       Target: %s\n", ui.Bold(target.ID()))
+		run, err := evaluator.ExecuteRun(ctx, cfg, cases, target)
+		if err != nil {
+			return err
+		}
+		printRunCompletionCard(set.Name, run)
 	}
+	return nil
+}
+
+func printRunCompletionCard(setName string, run domain.EvalRun) {
+	sep := strings.Repeat("-", 88)
+	fmt.Printf("\n%s\n", ui.Dim(sep))
+	fmt.Printf("%s Assessment Complete [%s] | Pass: %s | Fail: %s | Total: %d | Duration: %dms\n",
+		ui.PrefixGort(), ui.BoldCyan(setName),
+		ui.BoldGreen(fmt.Sprintf("%d", run.PassedTests)),
+		ui.BoldRed(fmt.Sprintf("%d", run.FailedTests)),
+		run.TotalTests, run.DurationMs)
+	fmt.Printf("%s TraceID: %s | Stored in SQLite: %s\n",
+		ui.PrefixGort(), ui.Dim(run.TraceID), ui.Dim(".gort/gort.db (eval_runs & eval_results)"))
+	fmt.Printf("%s\n\n", ui.Dim(sep))
+}
+
+func buildProviderFromSpec(spec domain.ProviderSpec) domain.Provider {
+	var base domain.Provider
+	if strings.HasPrefix(spec.ID, "webhook:") || spec.BodyTmpl != "" {
+		base = provider.NewWebhook(spec, nil)
+	} else {
+		base = provider.NewOpenAICompatible(spec, nil)
+	}
+	return provider.NewRateLimitedProvider(base, 0, 0, 4)
+}
+
+func buildJudgeProvider(spec domain.JudgeSpec) domain.Provider {
+	if spec.ID == "" {
+		return nil
+	}
+	pSpec := domain.ProviderSpec{
+		ID:      spec.ID,
+		BaseURL: spec.BaseURL,
+		APIKey:  spec.APIKey,
+		Temp:    spec.Temp,
+		MaxToks: spec.MaxToks,
+	}
+	return buildProviderFromSpec(pSpec)
 }
 
 func printUsage() {
