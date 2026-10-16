@@ -42,10 +42,10 @@
 
 ---
 
-## Faz 4: Dinamik LLM Plugin Motoru & Hibrit Orkestratör ⏳
-- [ ] `internal/redteam/recon.go`: Hedef prompt'lardan `Purpose` ve `Entities` çıkaran LLM modülü
-- [ ] `internal/plugin/base.go`: 20'li batching, deduplication, refusal check ve çoklu dil (`tr`, `en`) `<Modifiers>` enjeksiyonu yapan `BaseGenerator` (üretilen promptları SQLite `prompt_bank` içine kaydeder)
-- [ ] `internal/engine/evaluator.go`: `gort <dataset_name|all>` veya Attacker LLM ile üretilen test vakalarını paralel koşturup Judge LLM ile puanlayan ve OTel Store'a kaydeden motor
+## Faz 4: Dinamik LLM Plugin Motoru & Hibrit Orkestratör ✅
+- [x] `internal/plugin/generator.go`: Attacker LLM ile dinamik olarak aktif eklentilere çok dilli (`tr`, `en`) saldırı promptları üreten `Synthesizer` motoru
+- [x] `internal/engine/evaluator.go`: `gort <dataset_name|all>` veya Attacker LLM ile üretilen test vakalarını paralel koşturan, Judge LLM / Refusal ile puanlayan, canlı ANSI badge basan ve OTel Store'a kaydeden ana orkestratör
+- [x] `cmd/gort/main.go`: `gort <dataset>` ve `gort [y/N]` Attacker LLM akışlarının uçtan uca canlı yürütmeye bağlanması
 
 ---
 

@@ -155,19 +155,64 @@ func executeAssessment(configPath string, datasetArgs []string, db *store.SQLite
 	}
 	cfg.Redteam.Plugins = expanded
 	if len(datasetArgs) == 0 {
-		return executeAttackerSynthesisFlow(&cfg, in)
+		return executeAttackerSynthesisFlow(&cfg, db, in)
 	}
 	return executeDatasetFlow(configPath, &cfg, db, datasetArgs)
 }
 
-func executeAttackerSynthesisFlow(cfg *domain.Config, in io.Reader) error {
+func executeAttackerSynthesisFlow(cfg *domain.Config, db *store.SQLiteStore, in io.Reader) error {
 	confirmed, err := promptAttackerConfirmation(cfg, in)
 	if err != nil || !confirmed {
-		fmt.Println("[gort] Operation canceled by user.")
+		fmt.Printf("%s Operation canceled by user.\n", ui.PrefixGort())
 		return err
 	}
-	fmt.Printf("[gort] Starting Attacker LLM (%s) prompt synthesis for %d plugins (Phase 4)...\n",
-		cfg.Attacker.ID, len(cfg.Redteam.Plugins))
+	ctx := context.Background()
+	allRecs, err := plugin.All(ctx, db)
+	if err != nil {
+		return err
+	}
+	recMap := make(map[string]store.PluginRecord, len(allRecs))
+	for _, r := range allRecs {
+		recMap[r.ID] = r
+	}
+
+	attacker := buildProviderFromSpec(cfg.Attacker)
+	syn := plugin.NewSynthesizer(attacker)
+	fmt.Printf("\n%s Synthesizing dynamic prompts via Attacker LLM (%s)...\n",
+		ui.PrefixGort(), ui.Bold(attacker.ID()))
+
+	var allCases []domain.TestCase
+	for _, spec := range cfg.Redteam.Plugins {
+		rec, ok := recMap[spec.ID]
+		if !ok {
+			rec = store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
+		}
+		cases, err := syn.SynthesizeBatch(ctx, rec, spec.NumTests, cfg.Purpose, cfg.Redteam.Languages)
+		if err != nil {
+			fmt.Printf("  %s Failed synthesizing for %s: %v\n", ui.Badge("FAIL"), spec.ID, err)
+			continue
+		}
+		allCases = append(allCases, cases...)
+	}
+
+	if len(allCases) == 0 {
+		return fmt.Errorf("no test cases could be synthesized by attacker LLM")
+	}
+
+	fmt.Printf("%s Synthesized %s attack prompts. Starting assessment...\n",
+		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", len(allCases))))
+
+	judgeProvider := buildJudgeProvider(cfg.Judge)
+	evaluator := engine.NewEvaluator(db, judgeProvider, cfg.Judge.Rubric, cfg.MaxConcurrency)
+	for _, targetSpec := range cfg.Targets {
+		target := buildProviderFromSpec(targetSpec)
+		fmt.Printf("       Target: %s\n", ui.Bold(target.ID()))
+		run, err := evaluator.ExecuteRun(ctx, cfg, allCases, target)
+		if err != nil {
+			return err
+		}
+		printRunCompletionCard("synthetic_redteam", run)
+	}
 	return nil
 }
 

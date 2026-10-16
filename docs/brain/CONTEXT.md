@@ -5,7 +5,7 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0, Faz 1, Faz 2 ve Faz 3 Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 4 (Dinamik LLM Plugin Motoru & Hibrit Orkestratör)**
+- **Aktif Faz:** Faz 0, Faz 1, Faz 2, Faz 3 ve Faz 4 Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 5 (Statik ve Agentic Multi-Turn Stratejiler: Crescendo, GOAT, Jailbreak)**
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
@@ -49,11 +49,11 @@
 | `internal/domain` | Saf veri modelleri (`domain.go`, `telemetry.go`, `config.go`) | Tamamlandı ✅ |
 | `internal/config` | `config.yaml` okuyucu, `${ENV}` çözümleyici ve doğrulayıcı | Tamamlandı ✅ |
 | `internal/store` | CGO'suz SQLite: Katalog, `prompt_bank`, `eval_runs`, `eval_results`, `otel_spans` | Tamamlandı ✅ |
-| `internal/plugin` | SQLite tabanlı 155 plugin & 14 koleksiyon çözümleyici (`catalog.go`) | Katalog Hazır ✅ (LLM Üretici Faz 4) |
+| `internal/plugin` | SQLite tabanlı 155 plugin, 14 koleksiyon ve Attacker LLM `Synthesizer` | Tamamlandı ✅ |
 | `internal/dataset` | Otomatik Bootstrap, HF/GitHub/OWASP indirici, `prompt_bank` & CSV senkronizasyonu | Tamamlandı ✅ |
 | `internal/template` | SSTI-korumalı şablonlama (`SafeRenderer`) ve `injectVar` çıkarımı | Tamamlandı ✅ |
 | `internal/provider` | Ollama, vLLM, OpenAI, Webhook istemcileri ve RateLimiter (`Provider` arayüzü) | Tamamlandı ✅ (Faz 5 Agentic Decorator) |
 | `internal/grader` | Çoklu dil `notContains`, `IsBasicRefusal` ve `RubricGrader` Hakem LLM değerlendiricisi | Tamamlandı ✅ |
 | `internal/telemetry` | W3C `TraceID`/`SpanID` ve OTel GenAI Semantik Conventions (`tracer.go`) | Tamamlandı ✅ |
 | `internal/strategy` | Statik mutasyonlar ve multi-turn strateji sarmalayıcıları (`gort:strategy:*`) | Faz 5'te yazılacak ⏳ |
-| `internal/engine` | `HybridSynthesizer` ve paralel OTel-destekli `Evaluator` | Faz 4'te yazılacak ⏳ |
+| `internal/engine` | Paralel OTel Evaluator ve Canlı ANSI akışı (`evaluator.go`) | Tamamlandı ✅ |
