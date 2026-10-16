@@ -22,6 +22,7 @@
 - [x] `internal/dataset/loader.go`: Tek bir isimli veri setini (`gort lakera_gandalf` veya `prompts/hedehude.csv`) ya da `all` ile tüm veri setlerini sırayla SQLite `prompt_bank` üzerinden koşturan yükleyici
 - [x] `cmd/gort/cli.go` & `inspector.go`: Kullanıcı dostu alt komutlar (`gort ls`, `gort ls 1` / `gort ls <isim>` tablo görünümü, `gort plugins`, `gort plugins 1` / `gort plugins <id>` offline detay ve kullanım kartı, `gort pull`, ve veri seti verilmediğinde kullanıcı onaylı `[y/N]` Attacker LLM akışı)
 - [x] `internal/template/extractor.go` & `renderer.go`: `SkipRenderVars` destekli, SSTI-korumalı iki aşamalı `SafeRenderer`
+- [x] `internal/ui/ansi.go`: Harici bağımlılıksız, terminal/pipe duyarlı, görünür karakter uzunluğuna göre hizalamayı bozmayan ANSI renklendirme ve badge motoru (`ADR-012`)
 
 ---
 

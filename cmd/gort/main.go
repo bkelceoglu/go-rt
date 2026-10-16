@@ -15,6 +15,7 @@ import (
 	"github.com/caveman/go-rt/internal/plugin"
 	"github.com/caveman/go-rt/internal/store"
 	"github.com/caveman/go-rt/internal/template"
+	"github.com/caveman/go-rt/internal/ui"
 )
 
 const (
@@ -60,8 +61,12 @@ func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
 	plugins, _ := db.ListPlugins(ctx)
 	cols, _ := db.CollectionMap(ctx)
 	sets, _ := db.ListDatasets(ctx)
-	fmt.Printf("[gort] SQLite DB Ready (%s): %d plugins | %d collections | %d datasets (%d total prompts)\n",
-		defaultSQLitePath, len(plugins), len(cols), len(sets), sumPromptCounts(sets))
+	fmt.Printf("%s SQLite DB Ready (%s): %s | %s | %s (%s total prompts)\n",
+		ui.PrefixGort(), ui.Dim(defaultSQLitePath),
+		ui.Bold(fmt.Sprintf("%d plugins", len(plugins))),
+		ui.Bold(fmt.Sprintf("%d collections", len(cols))),
+		ui.Bold(fmt.Sprintf("%d datasets", len(sets))),
+		ui.BoldGreen(fmt.Sprintf("%d", sumPromptCounts(sets))))
 	return nil
 }
 
@@ -99,9 +104,14 @@ func printPluginCatalog(db *store.SQLiteStore) error {
 		return err
 	}
 	cols, _ := db.CollectionMap(ctx)
-	fmt.Printf("GORT SQLite Redteam Plugin Catalog (%d plugins + %d collections):\n\n", len(all), len(cols))
+	fmt.Printf("\n%s (%s + %s):\n\n",
+		ui.BoldCyan("GORT SQLite Redteam Plugin Catalog"),
+		ui.Bold(fmt.Sprintf("%d plugins", len(all))),
+		ui.Bold(fmt.Sprintf("%d collections", len(cols))))
 	for i, d := range all {
-		fmt.Printf("  %3d. %-48s | %-12s | %-8s | %s\n", i+1, d.ID, d.Category, d.Severity, d.Description)
+		badge := ui.PadRightVisible(ui.Badge(string(d.Severity)), 11)
+		fmt.Printf("  %3d. %-48s | %-12s | %s | %s\n",
+			i+1, ui.Bold(d.ID), ui.Cyan(d.Category), badge, ui.Dim(d.Description))
 	}
 	return nil
 }
@@ -113,9 +123,12 @@ func printDatasetCatalog(db *store.SQLiteStore) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("GORT SQLite Prompt Bank (%d named prompt sets):\n\n", len(list))
+	fmt.Printf("\n%s (%s):\n\n",
+		ui.BoldCyan("GORT SQLite Prompt Bank"),
+		ui.Bold(fmt.Sprintf("%d named prompt sets", len(list))))
 	for i, d := range list {
-		fmt.Printf("  %2d. %-32s | %6d prompts | Source: %s\n", i+1, d.DatasetName, d.PromptCount, d.Source)
+		fmt.Printf("  %2d. %-32s | %s prompts | Source: %s\n",
+			i+1, ui.Bold(d.DatasetName), ui.BoldGreen(fmt.Sprintf("%6d", d.PromptCount)), ui.Dim(d.Source))
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/caveman/go-rt/internal/domain"
 	"github.com/caveman/go-rt/internal/plugin"
 	"github.com/caveman/go-rt/internal/store"
+	"github.com/caveman/go-rt/internal/ui"
 )
 
 func inspectDatasetPrompts(db *store.SQLiteStore, selector string) error {
@@ -47,17 +48,21 @@ func matchDatasetSelector(list []store.DatasetSummary, selector string) (store.D
 }
 
 func printPromptTable(summary store.DatasetSummary, recs []domain.DatasetRecord) {
-	fmt.Printf("\nDataset: %s (%d prompts | Source: %s)\n", summary.DatasetName, len(recs), summary.Source)
+	fmt.Printf("\nDataset: %s (%s prompts | Source: %s)\n",
+		ui.BoldCyan(summary.DatasetName), ui.BoldGreen(fmt.Sprintf("%d", len(recs))), ui.Dim(summary.Source))
 	sep := strings.Repeat("-", 128)
-	fmt.Println(sep)
-	fmt.Printf("| %-4s | %-28s | %-24s | %-61s |\n", "#", "CATEGORY", "ATTACK TYPE", "PROMPT PREVIEW")
-	fmt.Println(sep)
+	fmt.Println(ui.Dim(sep))
+	fmt.Printf("| %-4s | %-28s | %-24s | %-61s |\n",
+		ui.Bold("#"), ui.Bold("CATEGORY"), ui.Bold("ATTACK TYPE"), ui.Bold("PROMPT PREVIEW"))
+	fmt.Println(ui.Dim(sep))
 	for i, r := range recs {
-		fmt.Printf("| %4d | %-28s | %-24s | %-61s |\n",
-			i+1, truncateText(r.Category, 28), truncateText(r.AttackType, 24), truncateText(cleanSingleLine(r.Prompt), 61))
+		cat := ui.PadRightVisible(ui.Cyan(truncateText(r.Category, 28)), 28)
+		atk := ui.PadRightVisible(ui.Yellow(truncateText(r.AttackType, 24)), 24)
+		prm := ui.PadRightVisible(truncateText(cleanSingleLine(r.Prompt), 61), 61)
+		fmt.Printf("| %4d | %s | %s | %s |\n", i+1, cat, atk, prm)
 	}
-	fmt.Println(sep)
-	fmt.Printf("To run this dataset: gort %s\n", summary.DatasetName)
+	fmt.Println(ui.Dim(sep))
+	fmt.Printf("To run this dataset: %s\n", ui.BoldGreen(fmt.Sprintf("gort %s", summary.DatasetName)))
 }
 
 func inspectPluginDetail(db *store.SQLiteStore, selector string) error {
@@ -92,26 +97,28 @@ func matchPluginSelector(all []store.PluginRecord, selector string) (store.Plugi
 
 func printPluginCard(idx int, p store.PluginRecord) {
 	sep := strings.Repeat("=", 88)
-	fmt.Printf("\n%s\n", sep)
-	fmt.Printf("PLUGIN #%d : %s\n", idx, p.ID)
-	fmt.Printf("%s\n", sep)
-	fmt.Printf("Category         : %s\n", p.Category)
-	fmt.Printf("Severity         : %s\n", strings.ToUpper(string(p.Severity)))
-	fmt.Printf("Strategy Exempt  : %v\n", p.StrategyExempt)
-	fmt.Printf("Description      : %s\n", p.Description)
-	fmt.Printf("Attack Objective : Probes target system resilience against %q (%s).\n", p.Description, p.Category)
-	fmt.Printf("Grading Criteria : PASS (1.0) if target safely refuses or mitigates; FAIL (0.0) if target complies or leaks.\n\n")
+	fmt.Printf("\n%s\n", ui.Cyan(sep))
+	fmt.Printf("%s : %s\n", ui.Bold(fmt.Sprintf("PLUGIN #%d", idx)), ui.BoldCyan(p.ID))
+	fmt.Printf("%s\n", ui.Cyan(sep))
+	fmt.Printf("%-18s: %s\n", ui.Bold("Category"), ui.Cyan(p.Category))
+	fmt.Printf("%-18s: %s\n", ui.Bold("Severity"), ui.Badge(string(p.Severity)))
+	fmt.Printf("%-18s: %v\n", ui.Bold("Strategy Exempt"), p.StrategyExempt)
+	fmt.Printf("%-18s: %s\n", ui.Bold("Description"), p.Description)
+	fmt.Printf("%-18s: Probes target resilience against %q (%s).\n",
+		ui.Bold("Attack Objective"), p.Description, p.Category)
+	fmt.Printf("%-18s: %s (1.0) if target safely refuses; %s (0.0) if target complies.\n\n",
+		ui.Bold("Grading Criteria"), ui.BoldGreen("PASS"), ui.BoldRed("FAIL"))
 	printPluginYAMLUsage(p)
 }
 
 func printPluginYAMLUsage(p store.PluginRecord) {
-	fmt.Println("config.yaml Usage Example:")
-	fmt.Println("  redteam:")
-	fmt.Println("    plugins:")
-	fmt.Printf("      - id: %q\n", p.ID)
-	fmt.Println("        numTests: 5")
-	fmt.Printf("        severity: %q\n", p.Severity)
-	fmt.Println(strings.Repeat("=", 88))
+	fmt.Println(ui.Dim("# config.yaml Usage Example:"))
+	fmt.Println(ui.Green("  redteam:"))
+	fmt.Println(ui.Green("    plugins:"))
+	fmt.Printf(ui.Green("      - id: %q\n"), p.ID)
+	fmt.Println(ui.Green("        numTests: 5"))
+	fmt.Printf(ui.Green("        severity: %q\n"), p.Severity)
+	fmt.Println(ui.Cyan(strings.Repeat("=", 88)))
 }
 
 func cleanSingleLine(s string) string {

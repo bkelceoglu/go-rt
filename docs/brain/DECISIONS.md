@@ -54,3 +54,9 @@
 ## ADR-011: Uygulama Dili Standardı (%100 İngilizce Uygulama, Kod, Log ve Konfigürasyon)
 - **Karar:** Geliştirici ile sohbet Türkçe yürütülse dahi, `gort` uygulamasının kendisi (tüm CLI çıktıları, tablo başlıkları, hata mesajları, interaktif onay soruları, Go yorum satırları, SQL şemaları ve `config.yaml` içeriği) **%100 İngilizce** olmak zorundadır.
 - **Gerekçe:** Kurumsal uluslararası ürün standardı, OpenTelemetry / log analitiği uyumluluğu ve kod tabanı dil bütünlüğü.
+
+## ADR-012: Sıfır Bağımlılıklı ANSI CLI ve Dış Sarmalayıcı (Full-Encapsulation) Web UI Mimarisi
+- **Karar:**
+  1. **ANSI CLI Çıktıları (`internal/ui`):** Harici kütüphane eklemeden Go standart kütüphanesiyle ANSI renklendirme (`BoldCyan`, `Badge`, `PadRightVisible`) sağlanır; pipe/yönlendirme veya `NO_COLOR` tespit edildiğinde otomatik olarak saf metne geri döner ve görünür karakter uzunluğuna göre tablo sütunlarını milimetrik hizalı tutar.
+  2. **Web UI Zamanlaması ve Mimarisi (Faz 6):** Web UI, CLI motoru (Faz 2 $\rightarrow$ Faz 5) tamamen bitip test edildikten sonra **en son adım (Faz 6)** olarak eklenecektir. Temel motor paketlerinde (`internal/*`) hiçbir UI mantığı bulunmaz; Web UI (`internal/webui`), motoru ve `.gort/gort.db` veritabanını dışarıdan sarmalayan (**full-encapsulation**) bir katmandır ve tek `gort` binary'si içine `//go:embed` ile gömülecektir.
+- **Gerekçe:** Clean Architecture prensibini korumak, önce çekirdek motoru CLI üzerinden kaya gibi sağlamlaştırmak, ardından arayüzü ek bir iş mantığı üretmeden saf bir sunum katmanı olarak bağlamak.
