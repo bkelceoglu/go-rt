@@ -5,7 +5,7 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0, Faz 1 ve Faz 2 Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 3 (OpenTelemetry GenAI & Çoklu Veritabanı Katmanı: SQLite + PostgreSQL 18+)**
+- **Aktif Faz:** Faz 0, Faz 1 ve Faz 2 Tamamlandı ✅ $\rightarrow$ Sıradaki: **Faz 3 (OpenTelemetry GenAI & SQLite Depolama Katmanı: `.gort/gort.db`)**
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
@@ -18,7 +18,7 @@
   - `gort [config.yaml] all` $\rightarrow$ SQLite `prompt_bank` içindeki tüm veri setlerini sırayla koşturur.
   - `gort config.yaml` $\rightarrow$ Veri seti verilmezse `config.yaml` içindeki aktif pluginleri listeler, kullanıcıdan `[y/N]` onayı alır ve Attacker LLM ile üretim yapar.
   - `gort ls` / `gort ls <numara|isim>` $\rightarrow$ Tüm veri setlerini listeler veya seçilen veri setinin promptlarını tablo olarak basar (`cmd/gort/inspector.go`).
-  - `gort plugins` / `gort plugins <numara|id>` $\rightarrow$ 155 plugini listeler veya seçilen pluginin tehdit vektörünü, Judge kriterini ve `config.yaml` kullanım örneğini offline kart olarak basar.
+  - `gort plugins` / `gort plugins <numara|id>` $\rightarrow$ 155 plugini listeler veya seçilen pluginin tehdit vektörünü, Judge kriterini ve `config.yaml` kullanım örneğini offline kart olarak basar (`--ai` ile canlı prompt üretir).
   - `gort pull` $\rightarrow$ Tüm uzak veri setlerini indirip SQLite `prompt_bank` ve `prompts/` klasörünü senkronize eder.
 - **Derleme Durumu:** `make all` (`go fmt`, `go vet`, `go test`, `go build`) temiz (Yeşil).
 
@@ -32,8 +32,8 @@
    - Hiçbir yerde müşteri ismi kullanılmaz. Tüm eklenti, koleksiyon, strateji ve grader kimlikleri `gort:plugin:*`, `gort:collection:*`, `gort:strategy:*`, `gort:grader:*` isim alanındadır.
 3. **Koşullu Attacker LLM & İsimlendirilmiş `prompt_bank` (ADR-007, ADR-009):**
    - Attacker LLM **sadece** CLI'da veri seti argümanı verilmediğinde (`gort config.yaml`) ve kullanıcı `[y/N]` onayı verdiğinde devreye girer.
-4. **OpenTelemetry (OTel) GenAI Uyumlu Çoklu Veritabanı (ADR-008):**
-   - Tüm sonuçlar W3C `TraceID`/`SpanID` ve `gen_ai.*` / `gort.*` öznitelikleriyle **SQLite** (`.gort/gort.db`), **PostgreSQL 18+** ve **OTLP Exporter** hedeflerine yazılır.
+4. **OpenTelemetry (OTel) GenAI Uyumlu SQLite Depolama (ADR-008, ADR-014):**
+   - Tüm değerlendirme sonuçları, W3C `TraceID`/`SpanID` ve `gen_ai.*` / `gort.*` semantik öznitelikleriyle harici bağımlılık olmadan doğrudan SQLite (`.gort/gort.db`) içinde saklanır. PostgreSQL iptal edilmiş olup tek kaynak SQLite'tır.
 5. **Sıfır CGO & Atomik Fonksiyonlar (ADR-001, ADR-002):**
    - Binary her zaman `CGO_ENABLED=0` (`modernc.org/sqlite`) ile derlenebilir olmalıdır.
    - Her fonksiyon **tek bir atomik iş** yapmalı ve **10–15 satırı** aşmamalıdır.

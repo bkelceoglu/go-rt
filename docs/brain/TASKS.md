@@ -35,11 +35,10 @@
 
 ---
 
-## Faz 3: OpenTelemetry (OTel) GenAI & Çoklu Veritabanı Katmanı (SQLite Eval Kayıtları + PostgreSQL 18+) ⏳
-- [ ] `internal/telemetry/tracer.go`: W3C `TraceID`/`SpanID` üretici ve `gen_ai.*` + `gort.*` OTel Span kaydedici
-- [ ] `internal/store/sqlite_eval.go`: SQLite `.gort/gort.db` içindeki `eval_runs`, `eval_results`, `otel_spans` tablolarına değerlendirme sonuçlarının yazılması ve sorgulanması
-- [ ] `internal/store/postgres.go`: `jackc/pgx/v5` tabanlı PostgreSQL 18+ sürücüsü (`JSONB` + `pgvector` uyumlu şema)
-- [ ] `internal/store/multi_store.go` & `internal/telemetry/otlp.go`: Sonuçları eşzamanlı olarak SQLite, PostgreSQL ve OTLP uçlarına yazan Fan-Out Store
+## Faz 3: OpenTelemetry (OTel) GenAI & SQLite Depolama Katmanı (`.gort/gort.db`) ⏳
+- [ ] `internal/telemetry/tracer.go`: W3C `TraceID`/`SpanID` üretici, `gen_ai.*` ve `gort.*` semantik özniteliklerini formatlayan OTel Tracer modülü
+- [ ] `internal/store/sqlite_eval.go`: SQLite `.gort/gort.db` içindeki `eval_runs`, `eval_results`, `otel_spans` tablolarına test sonuçlarını ve telemetriyi kaydeden/sorgulayan `SQLiteResultStore` (`domain.ResultStore`)
+- [ ] `internal/store/eval_test.go`: Değerlendirme koşumlarının, sonuçlarının ve OTel span'lerinin SQLite üzerinde sorgulanabilirlik birim testleri
 
 ---
 

@@ -66,3 +66,7 @@
   1. **Geliştirme Metodolojisi:** Kod tabanında büyük sıçramalar yerine, her biri tek sorumluluğa sahip mikro-adımlarla (Dosya $\rightarrow$ Birim Testi $\rightarrow$ `make all` $\rightarrow$ Git Commit) ilerlenecektir.
   2. **Çift Yönlü Sağlayıcı (Provider) Desteği:** `internal/provider` katmanı yalnızca yerel `ollama` değil, doğrudan uzaktaki resmi **OpenAI (`api.openai.com`)**, Azure OpenAI, uzak vLLM, Groq, LiteLLM ve DeepSeek API'lerini standart HTTP `v1/chat/completions` REST ve SSE protokolleriyle tam olarak destekleyecektir.
 - **Gerekçe:** Kod kalitesinde ve mimarisinde model geçişlerinden kaynaklanabilecek olası sapmaları sıfıra indirmek ve hem yerel hem de kurumsal bulut AI uç noktalarını eşit güçte test edebilmek.
+
+## ADR-014: Sıfır Bağımlılıklı SQLite-Exclusive Depolama Mimarisi (PostgreSQL İptali)
+- **Karar:** PostgreSQL 18+ gereksinimi tamamen mimariden çıkarılmıştır. Tüm değerlendirme kayıtları (`eval_runs`, `eval_results`), prompt havuzu (`prompt_bank`), katalog (`plugins`) ve OpenTelemetry span'leri (`otel_spans`) **münhasıran yerel SQLite (`.gort/gort.db`)** içinde saklanacaktır.
+- **Gerekçe:** Harici veritabanı kurulumlarını (Docker, Postgres daemon, şifre/bağlantı yönetimi) ortadan kaldırmak, <15 MB tekil binary taşınabilirliğini korumak, SQLite WAL + yerel JSON yetenekleriyle tüm analitik ve Web UI ihtiyaçlarını sıfır gecikmeyle karşılamak.
