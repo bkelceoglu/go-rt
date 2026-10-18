@@ -122,7 +122,10 @@ func (p *OpenAICompatibleProvider) parseAPIResponse(data []byte, status int, lat
 func buildProviderResponse(raw chatCompletionResponse, latency int64) domain.ProviderResponse {
 	output := ""
 	if len(raw.Choices) > 0 {
-		output = raw.Choices[0].Message.Content
+		output = strings.TrimSpace(raw.Choices[0].Message.Content)
+		if output == "" {
+			output = strings.TrimSpace(raw.Choices[0].Message.Reasoning)
+		}
 	}
 	return domain.ProviderResponse{
 		Output:    output,
@@ -212,14 +215,19 @@ func joinCompletionsPath(base string) string {
 	return base + "/v1/chat/completions"
 }
 
+type chatMessage struct {
+	Role      string `json:"role"`
+	Content   string `json:"content"`
+	Reasoning string `json:"reasoning"`
+}
+
+type chatChoice struct {
+	Message chatMessage `json:"message"`
+}
+
 type chatCompletionResponse struct {
-	Choices []struct {
-		Message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Usage struct {
+	Choices []chatChoice `json:"choices"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`

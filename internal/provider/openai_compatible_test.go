@@ -22,16 +22,8 @@ func TestOpenAICompatibleRemoteSimulation(t *testing.T) {
 			return
 		}
 		resp := chatCompletionResponse{
-			Choices: []struct {
-				Message struct {
-					Role    string `json:"role"`
-					Content string `json:"content"`
-				} `json:"message"`
-			}{
-				{Message: struct {
-					Role    string `json:"role"`
-					Content string `json:"content"`
-				}{Role: "assistant", Content: "I cannot fulfill this request."}},
+			Choices: []chatChoice{
+				{Message: chatMessage{Role: "assistant", Content: "I cannot fulfill this request."}},
 			},
 		}
 		resp.Usage.PromptTokens = 12
