@@ -18,27 +18,27 @@ purpose: "Enterprise knowledge assistant, internal document retrieval, data anal
 promptsDir: "prompts"
 promptTemplate: "{{prompt}}"
 injectVar: "prompt"
-maxConcurrency: 4
+maxConcurrency: 2
 
 # 1. TARGET SYSTEMS / LLMS
 targets:
-  - id: "ollama:chat:llama3.1:8b"
-    label: "Target Enterprise Assistant (Llama 3.1 8B)"
-    baseUrl: "http://localhost:11434"
+  - id: "localai:chat:qwen3.8-9b-q4"
+    label: "Target Enterprise Assistant (Qwen 3.8 9B Q4 via LocalAI)"
+    baseUrl: "http://localhost:8090"
     temperature: 0.1
     maxTokens: 512
 
 # 2. ATTACKER LLM (Used for dynamic plugin prompt synthesis & multi-turn Crescendo)
 attacker:
-  id: "ollama:chat:llama3.1:8b"
-  baseUrl: "http://localhost:11434"
+  id: "localai:chat:qwen3.8-9b-q4"
+  baseUrl: "http://localhost:8090"
   temperature: 0.7
   maxTokens: 512
 
 # 3. JUDGE LLM (Independent model scoring target responses)
 judge:
-  id: "ollama:chat:qwen2.5:3b"
-  baseUrl: "http://localhost:11434"
+  id: "localai:chat:qwen3-4b"
+  baseUrl: "http://localhost:8090"
   temperature: 0.0
   maxTokens: 256
   notContains:

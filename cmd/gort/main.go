@@ -167,26 +167,31 @@ func executeAttackerSynthesisFlow(cfg *domain.Config, db *store.SQLiteStore, in 
 		return err
 	}
 	ctx := context.Background()
-	allRecs, err := plugin.All(ctx, db)
+	allCases, err := synthesizeAllCases(ctx, cfg, db)
 	if err != nil {
 		return err
 	}
-	recMap := make(map[string]store.PluginRecord, len(allRecs))
-	for _, r := range allRecs {
-		recMap[r.ID] = r
-	}
+	fmt.Printf("%s Synthesized %s attack prompts. Starting assessment...\n",
+		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", len(allCases))))
+	return runTargetsEvaluation(ctx, cfg, db, "synthetic_redteam", allCases)
+}
 
+func synthesizeAllCases(ctx context.Context, cfg *domain.Config, db *store.SQLiteStore) ([]domain.TestCase, error) {
+	recMap, err := loadPluginRecordMap(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	attacker := buildProviderFromSpec(cfg.Attacker)
 	syn := plugin.NewSynthesizer(attacker)
 	fmt.Printf("\n%s Synthesizing dynamic prompts via Attacker LLM (%s)...\n",
 		ui.PrefixGort(), ui.Bold(attacker.ID()))
+	return collectSynthesizedCases(ctx, syn, cfg, recMap)
+}
 
+func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *domain.Config, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
 	var allCases []domain.TestCase
 	for _, spec := range cfg.Redteam.Plugins {
-		rec, ok := recMap[spec.ID]
-		if !ok {
-			rec = store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
-		}
+		rec := resolvePluginRecord(spec, recMap)
 		cases, err := syn.SynthesizeBatch(ctx, rec, spec.NumTests, cfg.Purpose, cfg.Redteam.Languages)
 		if err != nil {
 			fmt.Printf("  %s Failed synthesizing for %s: %v\n", ui.Badge("FAIL"), spec.ID, err)
@@ -194,24 +199,42 @@ func executeAttackerSynthesisFlow(cfg *domain.Config, db *store.SQLiteStore, in 
 		}
 		allCases = append(allCases, cases...)
 	}
-
 	if len(allCases) == 0 {
-		return fmt.Errorf("no test cases could be synthesized by attacker LLM")
+		return nil, fmt.Errorf("no test cases could be synthesized by attacker LLM")
 	}
+	return allCases, nil
+}
 
-	fmt.Printf("%s Synthesized %s attack prompts. Starting assessment...\n",
-		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", len(allCases))))
+func loadPluginRecordMap(ctx context.Context, db *store.SQLiteStore) (map[string]store.PluginRecord, error) {
+	allRecs, err := plugin.All(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	recMap := make(map[string]store.PluginRecord, len(allRecs))
+	for _, r := range allRecs {
+		recMap[r.ID] = r
+	}
+	return recMap, nil
+}
 
-	judgeProvider := buildJudgeProvider(cfg.Judge)
-	evaluator := engine.NewEvaluator(db, judgeProvider, cfg.Judge.Rubric, cfg.MaxConcurrency)
+func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginRecord) store.PluginRecord {
+	if rec, ok := recMap[spec.ID]; ok {
+		return rec
+	}
+	return store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
+}
+
+func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
+	judge := buildJudgeProvider(cfg.Judge)
+	evaluator := engine.NewEvaluator(db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
 	for _, targetSpec := range cfg.Targets {
 		target := buildProviderFromSpec(targetSpec)
 		fmt.Printf("       Target: %s\n", ui.Bold(target.ID()))
-		run, err := evaluator.ExecuteRun(ctx, cfg, allCases, target)
+		run, err := evaluator.ExecuteRun(ctx, cfg, cases, target)
 		if err != nil {
 			return err
 		}
-		printRunCompletionCard("synthetic_redteam", run)
+		printRunCompletionCard(setName, run)
 	}
 	return nil
 }

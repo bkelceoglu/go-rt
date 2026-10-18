@@ -52,7 +52,7 @@
 | `internal/plugin` | SQLite tabanlı 155 plugin, 14 koleksiyon ve Attacker LLM `Synthesizer` | Tamamlandı ✅ |
 | `internal/dataset` | Otomatik Bootstrap, HF/GitHub/OWASP indirici, `prompt_bank` & CSV senkronizasyonu | Tamamlandı ✅ |
 | `internal/template` | SSTI-korumalı şablonlama (`SafeRenderer`) ve `injectVar` çıkarımı | Tamamlandı ✅ |
-| `internal/provider` | Ollama, vLLM, OpenAI, Webhook istemcileri ve RateLimiter (`Provider` arayüzü) | Tamamlandı ✅ (Faz 5 Agentic Decorator) |
+| `internal/provider` | LocalAI (`:8090`), Ollama, vLLM, OpenAI, Webhook istemcileri ve RateLimiter (`Provider` arayüzü) | Tamamlandı ✅ (Faz 5 Agentic Decorator) |
 | `internal/grader` | Çoklu dil `notContains`, `IsBasicRefusal` ve `RubricGrader` Hakem LLM değerlendiricisi | Tamamlandı ✅ |
 | `internal/telemetry` | W3C `TraceID`/`SpanID` ve OTel GenAI Semantik Conventions (`tracer.go`) | Tamamlandı ✅ |
 | `internal/strategy` | Statik mutasyonlar ve multi-turn strateji sarmalayıcıları (`gort:strategy:*`) | Faz 5'te yazılacak ⏳ |

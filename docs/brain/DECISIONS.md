@@ -70,3 +70,8 @@
 ## ADR-014: Sıfır Bağımlılıklı SQLite-Exclusive Depolama Mimarisi (PostgreSQL İptali)
 - **Karar:** PostgreSQL 18+ gereksinimi tamamen mimariden çıkarılmıştır. Tüm değerlendirme kayıtları (`eval_runs`, `eval_results`), prompt havuzu (`prompt_bank`), katalog (`plugins`) ve OpenTelemetry span'leri (`otel_spans`) **münhasıran yerel SQLite (`.gort/gort.db`)** içinde saklanacaktır.
 - **Gerekçe:** Harici veritabanı kurulumlarını (Docker, Postgres daemon, şifre/bağlantı yönetimi) ortadan kaldırmak, <15 MB tekil binary taşınabilirliğini korumak, SQLite WAL + yerel JSON yetenekleriyle tüm analitik ve Web UI ihtiyaçlarını sıfır gecikmeyle karşılamak.
+
+## ADR-015: LocalAI (`:8090`) Varsayılan Yerel Çalışma Zamanı & İkili Model Dağılımı
+- **Karar:** Yerel makinedeki Ollama kurulumu kaldırılmış olup, varsayılan yerel LLM çalışma zamanı `http://localhost:8090` (`~/localAI`, Intel GPU SYCL) üzerinde çalışan **LocalAI** olarak güncellenmiştir. `OpenAICompatibleProvider` içinde `localai:` / `localai:chat:` önekleri ve `LOCALAI_BASE_URL` ortam değişkeni birinci sınıf olarak desteklenir. Varsayılan `config.yaml` yapılandırmasında Target ve Attacker rolleri için `localai:chat:qwen3.8-9b-q4` (~5.8 GB), Judge rolü için `localai:chat:qwen3-4b` (~3.0 GB + DFlash speculative decoding) kullanılır (`maxConcurrency: 2`).
+- **Gerekçe:** 30 GiB sistem belleğinde (~23 GiB kullanılabilir) iki modelin toplam bellek ayak izi (~9.5–10 GiB) rahatça aynı anda sığmakta ve bağımsız bir Judge LLM ile yüksek doğruluklu değerlendirme sağlamaktadır.
+

@@ -137,7 +137,12 @@ func buildProviderResponse(raw chatCompletionResponse, latency int64) domain.Pro
 }
 
 func resolveModelName(id string) string {
-	prefixes := []string{"openai:chat:", "openai:", "ollama:chat:", "ollama:", "vllm:chat:", "vllm:"}
+	prefixes := []string{
+		"localai:chat:", "localai:",
+		"openai:chat:", "openai:",
+		"ollama:chat:", "ollama:",
+		"vllm:chat:", "vllm:",
+	}
 	for _, p := range prefixes {
 		if strings.HasPrefix(id, p) {
 			return strings.TrimPrefix(id, p)
@@ -158,6 +163,8 @@ func resolveBaseURL(id, explicit string) string {
 
 func resolveEnvBaseURL(id string) string {
 	switch {
+	case strings.HasPrefix(id, "localai"):
+		return os.Getenv("LOCALAI_BASE_URL")
 	case strings.HasPrefix(id, "ollama"):
 		if v := os.Getenv("OLLAMA_BASE_URL"); v != "" {
 			return v
@@ -168,7 +175,7 @@ func resolveEnvBaseURL(id string) string {
 	case strings.HasPrefix(id, "vllm"):
 		return os.Getenv("VLLM_BASE_URL")
 	default:
-		return ""
+		return os.Getenv("LOCALAI_BASE_URL")
 	}
 }
 
@@ -178,8 +185,10 @@ func defaultBaseURL(id string) string {
 		return "https://api.openai.com/v1"
 	case strings.HasPrefix(id, "vllm"):
 		return "http://localhost:8000/v1"
-	default:
+	case strings.HasPrefix(id, "ollama"):
 		return "http://localhost:11434/v1"
+	default:
+		return "http://localhost:8090/v1"
 	}
 }
 

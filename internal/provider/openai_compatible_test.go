@@ -81,17 +81,28 @@ func TestOpenAICompatibleErrorHandling(t *testing.T) {
 }
 
 func TestResolveModelNameAndBaseURL(t *testing.T) {
+	if resolveModelName("localai:chat:qwen3.8-9b-q4") != "qwen3.8-9b-q4" {
+		t.Errorf("failed resolving localai model name")
+	}
 	if resolveModelName("ollama:chat:qwen2.5:3b") != "qwen2.5:3b" {
 		t.Errorf("failed resolving ollama model name")
 	}
 	if resolveModelName("openai:gpt-4o") != "gpt-4o" {
 		t.Errorf("failed resolving openai model name")
 	}
+	if resolveBaseURL("localai:chat:qwen3.8-9b-q4", "") != "http://localhost:8090/v1" {
+		t.Errorf("failed resolving default localai base url")
+	}
 	if resolveBaseURL("openai:chat:gpt-4o", "") != "https://api.openai.com/v1" {
 		t.Errorf("failed resolving default openai base url")
 	}
 	if resolveBaseURL("ollama:llama3", "") != "http://localhost:11434/v1" {
 		t.Errorf("failed resolving default ollama base url")
+	}
+
+	t.Setenv("LOCALAI_BASE_URL", "http://127.0.0.1:8090/v1")
+	if resolveBaseURL("localai:chat:qwen3-4b", "") != "http://127.0.0.1:8090/v1" {
+		t.Errorf("failed resolving env LOCALAI_BASE_URL")
 	}
 
 	t.Setenv("OLLAMA_BASE_URL", "http://gpu-rig.local:11434/v1")
