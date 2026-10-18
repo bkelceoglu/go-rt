@@ -2,187 +2,208 @@ package store
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/caveman/go-rt/internal/domain"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// SaveEvalRun inserts or updates an assessment session run in SQLite.
+// SaveEvalRun inserts or updates an assessment session run in SQLite via GORM.
 func (s *SQLiteStore) SaveEvalRun(ctx context.Context, run domain.EvalRun) error {
-	targetsJSON, _ := json.Marshal(run.TargetProviders)
-	createdAt := run.CreatedAt.UTC().Format(time.RFC3339)
-	query := `INSERT INTO eval_runs (
-		eval_id, trace_id, description, purpose, target_providers_json, judge_provider,
-		total_tests, passed_tests, failed_tests, total_tokens, duration_ms, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	ON CONFLICT(eval_id) DO UPDATE SET
-		total_tests = excluded.total_tests,
-		passed_tests = excluded.passed_tests,
-		failed_tests = excluded.failed_tests,
-		total_tokens = excluded.total_tokens,
-		duration_ms = excluded.duration_ms`
-	_, err := s.db.ExecContext(ctx, query,
-		run.EvalID, run.TraceID, run.Description, run.Purpose, string(targetsJSON), run.JudgeProvider,
-		run.TotalTests, run.PassedTests, run.FailedTests, run.TotalTokens, run.DurationMs, createdAt)
+	model := toEvalRunModel(run)
+	err := s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{UpdateAll: true}).
+		Create(&model).Error
 	if err != nil {
 		return fmt.Errorf("save eval run %s: %w", run.EvalID, err)
 	}
 	return nil
 }
 
-// SaveEvalResult persists a single test evaluation outcome with trace linkage.
+// SaveEvalResult persists a single test evaluation outcome with trace linkage via GORM.
 func (s *SQLiteStore) SaveEvalResult(ctx context.Context, res domain.EvalResult) error {
-	convJSON, _ := json.Marshal(res.ConversationHistory)
-	otelJSON, _ := json.Marshal(res.OTelAttributes)
-	passedInt := 0
-	if res.Pass {
-		passedInt = 1
-	}
-	cachedInt := 0
-	if res.Cached {
-		cachedInt = 1
-	}
-	createdAt := res.CreatedAt.UTC().Format(time.RFC3339)
-	query := `INSERT INTO eval_results (
-		result_id, eval_id, trace_id, span_id, plugin_id, category, attack_type, source,
-		strategy_id, severity, inject_var, raw_prompt, rendered_prompt, target_output,
-		pass, score, failure_reason, judge_reason, judge_rubric, latency_ms,
-		tokens_prompt, tokens_completion, tokens_total, cached, conversation_json, otel_attributes_json, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := s.db.ExecContext(ctx, query,
-		res.ResultID, res.EvalID, res.TraceID, res.SpanID, res.PluginID, res.Category, res.AttackType, res.Source,
-		res.StrategyID, string(res.Severity), res.InjectVar, res.RawPrompt, res.RenderedPrompt, res.TargetOutput,
-		passedInt, res.Score, res.FailureReason, res.JudgeReason, res.JudgeRubric, res.LatencyMs,
-		res.TokenUsage.Prompt, res.TokenUsage.Completion, res.TokenUsage.Total, cachedInt,
-		string(convJSON), string(otelJSON), createdAt)
+	model := toEvalResultModel(res)
+	err := s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{UpdateAll: true}).
+		Create(&model).Error
 	if err != nil {
 		return fmt.Errorf("save eval result %s: %w", res.ResultID, err)
 	}
 	return nil
 }
 
-// SaveOTelSpan stores an OpenTelemetry GenAI span record in SQLite.
+// SaveOTelSpan stores an OpenTelemetry GenAI span record in SQLite via GORM.
 func (s *SQLiteStore) SaveOTelSpan(ctx context.Context, span domain.OTelSpanRecord) error {
-	attrsJSON, _ := json.Marshal(span.Attributes)
-	eventsJSON, _ := json.Marshal(span.Events)
-	query := `INSERT INTO otel_spans (
-		span_id, trace_id, parent_span_id, eval_id, result_id, name, kind,
-		start_time_unix_nano, end_time_unix_nano, status_code, attributes_json, events_json
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := s.db.ExecContext(ctx, query,
-		span.SpanID, span.TraceID, span.ParentSpanID, span.EvalID, span.ResultID, span.Name, string(span.Kind),
-		span.StartTimeUnixNano, span.EndTimeUnixNano, span.StatusCode, string(attrsJSON), string(eventsJSON))
+	model := toOTelSpanModel(span)
+	err := s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{UpdateAll: true}).
+		Create(&model).Error
 	if err != nil {
 		return fmt.Errorf("save otel span %s: %w", span.SpanID, err)
 	}
 	return nil
 }
 
-// QueryResults retrieves evaluation results filtered by criteria.
+// QueryResults retrieves evaluation results filtered by criteria via GORM.
 func (s *SQLiteStore) QueryResults(ctx context.Context, f domain.ResultFilter) ([]domain.EvalResult, error) {
-	query, args := buildResultQuery(f)
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
+	var models []EvalResultModel
+	tx := applyResultFilter(s.db.WithContext(ctx).Model(&EvalResultModel{}), f)
+	if err := tx.Order("created_at ASC").Find(&models).Error; err != nil {
 		return nil, fmt.Errorf("query eval results: %w", err)
 	}
-	defer rows.Close()
-	return scanResultRows(rows)
+	return mapModelsToEvalResults(models), nil
 }
 
-func buildResultQuery(f domain.ResultFilter) (string, []any) {
-	sb := strings.Builder{}
-	sb.WriteString(`SELECT
-		result_id, eval_id, trace_id, span_id, plugin_id, category, attack_type, source,
-		strategy_id, severity, inject_var, raw_prompt, rendered_prompt, target_output,
-		pass, score, failure_reason, judge_reason, judge_rubric, latency_ms,
-		tokens_prompt, tokens_completion, tokens_total, cached, conversation_json, otel_attributes_json, created_at
-	FROM eval_results WHERE 1=1`)
-	var args []any
+func applyResultFilter(tx *gorm.DB, f domain.ResultFilter) *gorm.DB {
 	if f.EvalID != "" {
-		sb.WriteString(" AND eval_id = ?")
-		args = append(args, f.EvalID)
+		tx = tx.Where("eval_id = ?", f.EvalID)
 	}
 	if f.PluginID != "" {
-		sb.WriteString(" AND plugin_id = ?")
-		args = append(args, f.PluginID)
+		tx = tx.Where("plugin_id = ?", f.PluginID)
 	}
 	if f.FailedOnly {
-		sb.WriteString(" AND pass = 0")
+		tx = tx.Where("pass = ?", false)
 	}
-	sb.WriteString(" ORDER BY created_at ASC")
 	if f.Limit > 0 {
-		sb.WriteString(fmt.Sprintf(" LIMIT %d", f.Limit))
+		tx = tx.Limit(f.Limit)
 	}
-	return sb.String(), args
+	return tx
 }
 
-func scanResultRows(rows *sql.Rows) ([]domain.EvalResult, error) {
-	var list []domain.EvalResult
-	for rows.Next() {
-		res, err := scanSingleResultRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		list = append(list, res)
-	}
-	return list, rows.Err()
-}
-
-func scanSingleResultRow(rows *sql.Rows) (domain.EvalResult, error) {
-	var res domain.EvalResult
-	var passedInt, cachedInt int
-	var sevStr, convJSON, otelJSON, createdStr string
-	err := rows.Scan(
-		&res.ResultID, &res.EvalID, &res.TraceID, &res.SpanID, &res.PluginID, &res.Category, &res.AttackType, &res.Source,
-		&res.StrategyID, &sevStr, &res.InjectVar, &res.RawPrompt, &res.RenderedPrompt, &res.TargetOutput,
-		&passedInt, &res.Score, &res.FailureReason, &res.JudgeReason, &res.JudgeRubric, &res.LatencyMs,
-		&res.TokenUsage.Prompt, &res.TokenUsage.Completion, &res.TokenUsage.Total, &cachedInt,
-		&convJSON, &otelJSON, &createdStr)
-	if err != nil {
-		return res, err
-	}
-	res.Pass = (passedInt == 1)
-	res.Cached = (cachedInt == 1)
-	res.Severity = domain.Severity(sevStr)
-	_ = json.Unmarshal([]byte(convJSON), &res.ConversationHistory)
-	_ = json.Unmarshal([]byte(otelJSON), &res.OTelAttributes)
-	res.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
-	return res, nil
-}
-
-// ListEvalRuns returns recent evaluation run summaries.
+// ListEvalRuns returns recent evaluation run summaries via GORM.
 func (s *SQLiteStore) ListEvalRuns(ctx context.Context, limit int) ([]domain.EvalRun, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT eval_id, trace_id, description, purpose, target_providers_json, judge_provider,
-		total_tests, passed_tests, failed_tests, total_tokens, duration_ms, created_at
-	FROM eval_runs ORDER BY created_at DESC LIMIT ?`
-	rows, err := s.db.QueryContext(ctx, query, limit)
+	var models []EvalRunModel
+	err := s.db.WithContext(ctx).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&models).Error
 	if err != nil {
 		return nil, fmt.Errorf("list eval runs: %w", err)
 	}
-	defer rows.Close()
-	return scanEvalRunRows(rows)
+	return mapModelsToEvalRuns(models), nil
 }
 
-func scanEvalRunRows(rows *sql.Rows) ([]domain.EvalRun, error) {
-	var list []domain.EvalRun
-	for rows.Next() {
-		var r domain.EvalRun
-		var targetsJSON, createdStr string
-		err := rows.Scan(&r.EvalID, &r.TraceID, &r.Description, &r.Purpose, &targetsJSON, &r.JudgeProvider,
-			&r.TotalTests, &r.PassedTests, &r.FailedTests, &r.TotalTokens, &r.DurationMs, &createdStr)
-		if err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(targetsJSON), &r.TargetProviders)
-		r.CreatedAt, _ = time.Parse(time.RFC3339, createdStr)
-		list = append(list, r)
+func toEvalRunModel(run domain.EvalRun) EvalRunModel {
+	return EvalRunModel{
+		EvalID:          run.EvalID,
+		TraceID:         run.TraceID,
+		Description:     run.Description,
+		Purpose:         run.Purpose,
+		TargetProviders: run.TargetProviders,
+		JudgeProvider:   run.JudgeProvider,
+		TotalTests:      run.TotalTests,
+		PassedTests:     run.PassedTests,
+		FailedTests:     run.FailedTests,
+		TotalTokens:     run.TotalTokens,
+		DurationMs:      run.DurationMs,
+		CreatedAt:       run.CreatedAt.UTC(),
 	}
-	return list, rows.Err()
+}
+
+func mapModelsToEvalRuns(models []EvalRunModel) []domain.EvalRun {
+	out := make([]domain.EvalRun, 0, len(models))
+	for _, m := range models {
+		out = append(out, domain.EvalRun{
+			EvalID:          m.EvalID,
+			TraceID:         m.TraceID,
+			Description:     m.Description,
+			Purpose:         m.Purpose,
+			TargetProviders: m.TargetProviders,
+			JudgeProvider:   m.JudgeProvider,
+			TotalTests:      m.TotalTests,
+			PassedTests:     m.PassedTests,
+			FailedTests:     m.FailedTests,
+			TotalTokens:     m.TotalTokens,
+			DurationMs:      m.DurationMs,
+			CreatedAt:       m.CreatedAt,
+		})
+	}
+	return out
+}
+
+func toEvalResultModel(res domain.EvalResult) EvalResultModel {
+	return EvalResultModel{
+		ResultID:            res.ResultID,
+		EvalID:              res.EvalID,
+		TraceID:             res.TraceID,
+		SpanID:              res.SpanID,
+		PluginID:            res.PluginID,
+		Category:            res.Category,
+		AttackType:          res.AttackType,
+		Source:              res.Source,
+		StrategyID:          res.StrategyID,
+		Severity:            res.Severity,
+		InjectVar:           res.InjectVar,
+		RawPrompt:           res.RawPrompt,
+		RenderedPrompt:      res.RenderedPrompt,
+		TargetOutput:        res.TargetOutput,
+		Pass:                res.Pass,
+		Score:               res.Score,
+		FailureReason:       res.FailureReason,
+		JudgeReason:         res.JudgeReason,
+		JudgeRubric:         res.JudgeRubric,
+		LatencyMs:           res.LatencyMs,
+		TokensPrompt:        res.TokenUsage.Prompt,
+		TokensCompletion:    res.TokenUsage.Completion,
+		TokensTotal:         res.TokenUsage.Total,
+		Cached:              res.Cached,
+		ConversationHistory: res.ConversationHistory,
+		OTelAttributes:      res.OTelAttributes,
+		CreatedAt:           res.CreatedAt.UTC(),
+	}
+}
+
+func mapModelsToEvalResults(models []EvalResultModel) []domain.EvalResult {
+	out := make([]domain.EvalResult, 0, len(models))
+	for _, m := range models {
+		out = append(out, domain.EvalResult{
+			ResultID:            m.ResultID,
+			EvalID:              m.EvalID,
+			TraceID:             m.TraceID,
+			SpanID:              m.SpanID,
+			PluginID:            m.PluginID,
+			Category:            m.Category,
+			AttackType:          m.AttackType,
+			Source:              m.Source,
+			StrategyID:          m.StrategyID,
+			Severity:            m.Severity,
+			InjectVar:           m.InjectVar,
+			RawPrompt:           m.RawPrompt,
+			RenderedPrompt:      m.RenderedPrompt,
+			TargetOutput:        m.TargetOutput,
+			Pass:                m.Pass,
+			Score:               m.Score,
+			FailureReason:       m.FailureReason,
+			JudgeReason:         m.JudgeReason,
+			JudgeRubric:         m.JudgeRubric,
+			LatencyMs:           m.LatencyMs,
+			TokenUsage:          domain.TokenUsage{Prompt: m.TokensPrompt, Completion: m.TokensCompletion, Total: m.TokensTotal},
+			Cached:              m.Cached,
+			ConversationHistory: m.ConversationHistory,
+			OTelAttributes:      m.OTelAttributes,
+			CreatedAt:           m.CreatedAt,
+		})
+	}
+	return out
+}
+
+func toOTelSpanModel(span domain.OTelSpanRecord) OTelSpanModel {
+	return OTelSpanModel{
+		SpanID:            span.SpanID,
+		TraceID:           span.TraceID,
+		ParentSpanID:      span.ParentSpanID,
+		EvalID:            span.EvalID,
+		ResultID:          span.ResultID,
+		Name:              span.Name,
+		Kind:              span.Kind,
+		StartTimeUnixNano: span.StartTimeUnixNano,
+		EndTimeUnixNano:   span.EndTimeUnixNano,
+		StatusCode:        span.StatusCode,
+		Attributes:        span.Attributes,
+		Events:            span.Events,
+	}
 }

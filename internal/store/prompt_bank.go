@@ -3,45 +3,50 @@ package store
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"strings"
+	"time"
 
 	"github.com/caveman/go-rt/internal/domain"
+	"gorm.io/gorm/clause"
 )
 
-// SaveDatasetPrompts inserts or updates a named prompt set inside the SQLite prompt_bank table.
+// SaveDatasetPrompts inserts or updates a named prompt set inside the SQLite prompt_bank table via GORM.
 func (s *SQLiteStore) SaveDatasetPrompts(ctx context.Context, datasetName string, records []domain.DatasetRecord) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
+	rows := buildPromptBankRows(datasetName, records)
+	if len(rows) == 0 {
+		return nil
 	}
-	defer tx.Rollback()
-	if err := insertPromptBatch(ctx, tx, datasetName, records); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return s.db.WithContext(ctx).
+		Clauses(clause.OnConflict{UpdateAll: true}).
+		CreateInBatches(rows, 250).Error
 }
 
-func insertPromptBatch(ctx context.Context, tx *sql.Tx, datasetName string, records []domain.DatasetRecord) error {
-	stmt, err := tx.PrepareContext(ctx,
-		`INSERT OR REPLACE INTO prompt_bank (dataset_name, prompt_hash, prompt, category, attack_type, source)
-		 VALUES (?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
+func buildPromptBankRows(datasetName string, records []domain.DatasetRecord) []PromptBankRecord {
+	now := time.Now().UTC().Format(time.RFC3339)
+	seen := make(map[string]struct{}, len(records))
+	var rows []PromptBankRecord
 	for _, r := range records {
 		trimmed := strings.TrimSpace(r.Prompt)
 		if len(trimmed) <= 5 {
 			continue
 		}
 		h := hashPrompt(datasetName, trimmed)
-		if _, err := stmt.ExecContext(ctx, datasetName, h, trimmed, r.Category, r.AttackType, r.Source); err != nil {
-			return err
+		if _, exists := seen[h]; exists {
+			continue
 		}
+		seen[h] = struct{}{}
+		rows = append(rows, PromptBankRecord{
+			DatasetName: datasetName,
+			PromptHash:  h,
+			Prompt:      trimmed,
+			Category:    r.Category,
+			AttackType:  r.AttackType,
+			Source:      r.Source,
+			CreatedAt:   now,
+		})
 	}
-	return nil
+	return rows
 }
 
 func hashPrompt(datasetName, prompt string) string {
@@ -51,43 +56,38 @@ func hashPrompt(datasetName, prompt string) string {
 
 // LoadDatasetPrompts returns all prompts belonging to datasetName from prompt_bank.
 func (s *SQLiteStore) LoadDatasetPrompts(ctx context.Context, datasetName string) ([]domain.DatasetRecord, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT prompt, category, attack_type, source FROM prompt_bank WHERE dataset_name = ? ORDER BY rowid`,
-		datasetName)
+	var rows []PromptBankRecord
+	err := s.db.WithContext(ctx).
+		Where("dataset_name = ?", datasetName).
+		Order("rowid ASC").
+		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanPromptBankRows(rows)
+	return mapPromptBankToDatasetRecords(rows), nil
 }
 
-func scanPromptBankRows(rows *sql.Rows) ([]domain.DatasetRecord, error) {
-	var out []domain.DatasetRecord
-	for rows.Next() {
-		var r domain.DatasetRecord
-		if err := rows.Scan(&r.Prompt, &r.Category, &r.AttackType, &r.Source); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
+func mapPromptBankToDatasetRecords(rows []PromptBankRecord) []domain.DatasetRecord {
+	out := make([]domain.DatasetRecord, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, domain.DatasetRecord{
+			Prompt:     r.Prompt,
+			Category:   r.Category,
+			AttackType: r.AttackType,
+			Source:     r.Source,
+		})
 	}
-	return out, rows.Err()
+	return out
 }
 
 // ListDatasets returns all distinct dataset names in prompt_bank with their prompt counts.
 func (s *SQLiteStore) ListDatasets(ctx context.Context) ([]DatasetSummary, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT dataset_name, COUNT(*), MIN(source) FROM prompt_bank GROUP BY dataset_name ORDER BY dataset_name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	var out []DatasetSummary
-	for rows.Next() {
-		var d DatasetSummary
-		if err := rows.Scan(&d.DatasetName, &d.PromptCount, &d.Source); err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
+	err := s.db.WithContext(ctx).
+		Model(&PromptBankRecord{}).
+		Select("dataset_name, COUNT(*) as prompt_count, MIN(source) as source").
+		Group("dataset_name").
+		Order("dataset_name ASC").
+		Scan(&out).Error
+	return out, err
 }

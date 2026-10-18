@@ -48,7 +48,7 @@
 | `cmd/gort` | Ergonomik CLI (`main.go`, `cli.go`, `inspector.go`, `cli_test.go`) | Tamamlandı ✅ |
 | `internal/domain` | Saf veri modelleri (`domain.go`, `telemetry.go`, `config.go`) | Tamamlandı ✅ |
 | `internal/config` | `config.yaml` okuyucu, `${ENV}` çözümleyici ve doğrulayıcı | Tamamlandı ✅ |
-| `internal/store` | CGO'suz SQLite: Katalog, `prompt_bank`, `eval_runs`, `eval_results`, `otel_spans` | Tamamlandı ✅ |
+| `internal/store` | GORM + Pure-Go SQLite (`glebarez/sqlite`, `AutoMigrate`, `serializer:json`): Katalog, `prompt_bank`, `eval_runs`, `eval_results`, `otel_spans` | Tamamlandı ✅ |
 | `internal/plugin` | SQLite tabanlı 155 plugin, 14 koleksiyon ve Attacker LLM `Synthesizer` | Tamamlandı ✅ |
 | `internal/dataset` | Otomatik Bootstrap, HF/GitHub/OWASP indirici, `prompt_bank` & CSV senkronizasyonu | Tamamlandı ✅ |
 | `internal/template` | SSTI-korumalı şablonlama (`SafeRenderer`) ve `injectVar` çıkarımı | Tamamlandı ✅ |
