@@ -50,8 +50,11 @@ func (e *Evaluator) ExecuteRun(ctx context.Context, cfg *domain.Config, cases []
 	traceID := telemetry.GenerateTraceID()
 	run := e.initEvalRun(evalID, traceID, cfg, target.ID(), len(cases))
 	start := time.Now()
+	if e.store != nil {
+		_ = e.store.SaveEvalRun(ctx, run)
+	}
 
-	stats, err := e.runConcurrentCases(ctx, run, cases, target, cfg)
+	stats, err := e.runConcurrentCases(ctx, run, start, cases, target, cfg)
 	if err != nil {
 		return run, err
 	}
@@ -86,7 +89,7 @@ type runStats struct {
 	tokens int
 }
 
-func (e *Evaluator) runConcurrentCases(ctx context.Context, run domain.EvalRun, cases []domain.TestCase, target domain.Provider, cfg *domain.Config) (*runStats, error) {
+func (e *Evaluator) runConcurrentCases(ctx context.Context, run domain.EvalRun, start time.Time, cases []domain.TestCase, target domain.Provider, cfg *domain.Config) (*runStats, error) {
 	stats := &runStats{}
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(e.concurrency)
@@ -98,13 +101,13 @@ func (e *Evaluator) runConcurrentCases(ctx context.Context, run domain.EvalRun, 
 		idx := i + 1
 		testCase := tc
 		g.Go(func() error {
-			return e.executeSingleCase(gCtx, run, testCase, idx, len(cases), target, cfg, renderer, stats)
+			return e.executeSingleCase(gCtx, run, start, testCase, idx, len(cases), target, cfg, renderer, stats)
 		})
 	}
 	return stats, g.Wait()
 }
 
-func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, tc domain.TestCase, idx, total int, target domain.Provider, cfg *domain.Config, renderer *template.SafeRenderer, stats *runStats) error {
+func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, start time.Time, tc domain.TestCase, idx, total int, target domain.Provider, cfg *domain.Config, renderer *template.SafeRenderer, stats *runStats) error {
 	rendered := renderer.Render(cfg.PromptTemplate, tc.Vars)
 	span := telemetry.NewSpan(run.TraceID, "", run.EvalID, tc.ID, "gort.eval.test_case", domain.SpanKindClient)
 
@@ -112,12 +115,12 @@ func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, t
 	resp, err := effectiveTarget.Call(ctx, domain.PromptRequest{Prompt: rendered, Vars: tc.Vars, TestCase: tc})
 	if err != nil {
 		telemetry.FinishSpan(&span, false)
-		return e.recordFailedResult(ctx, run, tc, rendered, err.Error(), span, stats, idx, total)
+		return e.recordFailedResult(ctx, run, start, tc, rendered, err.Error(), span, stats, idx, total)
 	}
 
 	res := e.gradeResponse(ctx, run, tc, rendered, resp, cfg, &span)
-	e.updateRunStats(stats, res.Pass, resp.TokenUsage.Total)
-	e.persistResult(ctx, res, span)
+	snap := e.updateRunStats(stats, run, start, res.Pass, resp.TokenUsage.Total)
+	e.persistResult(ctx, snap, res, span)
 	printLiveResultLine(idx, total, tc, res)
 	if e.verbose {
 		printVerboseCaseDetail(tc, res)
@@ -182,10 +185,8 @@ func buildEvalResultRecord(run domain.EvalRun, tc domain.TestCase, rendered stri
 	}
 }
 
-func (e *Evaluator) recordFailedResult(ctx context.Context, run domain.EvalRun, tc domain.TestCase, rendered, errMsg string, span domain.OTelSpanRecord, stats *runStats, idx, total int) error {
-	stats.mu.Lock()
-	stats.failed++
-	stats.mu.Unlock()
+func (e *Evaluator) recordFailedResult(ctx context.Context, run domain.EvalRun, start time.Time, tc domain.TestCase, rendered, errMsg string, span domain.OTelSpanRecord, stats *runStats, idx, total int) error {
+	snap := e.updateRunStats(stats, run, start, false, 0)
 	res := domain.EvalResult{
 		ResultID:      fmt.Sprintf("res-%s", telemetry.GenerateSpanID()),
 		EvalID:        run.EvalID,
@@ -198,12 +199,12 @@ func (e *Evaluator) recordFailedResult(ctx context.Context, run domain.EvalRun, 
 		Score:         0.0,
 		CreatedAt:     time.Now(),
 	}
-	e.persistResult(ctx, res, span)
+	e.persistResult(ctx, snap, res, span)
 	printLiveResultLine(idx, total, tc, res)
 	return nil
 }
 
-func (e *Evaluator) updateRunStats(stats *runStats, pass bool, tokens int) {
+func (e *Evaluator) updateRunStats(stats *runStats, run domain.EvalRun, start time.Time, pass bool, tokens int) domain.EvalRun {
 	stats.mu.Lock()
 	defer stats.mu.Unlock()
 	if pass {
@@ -212,12 +213,18 @@ func (e *Evaluator) updateRunStats(stats *runStats, pass bool, tokens int) {
 		stats.failed++
 	}
 	stats.tokens += tokens
+	run.PassedTests = stats.passed
+	run.FailedTests = stats.failed
+	run.TotalTokens = stats.tokens
+	run.DurationMs = time.Since(start).Milliseconds()
+	return run
 }
 
-func (e *Evaluator) persistResult(ctx context.Context, res domain.EvalResult, span domain.OTelSpanRecord) {
+func (e *Evaluator) persistResult(ctx context.Context, run domain.EvalRun, res domain.EvalResult, span domain.OTelSpanRecord) {
 	if e.store == nil {
 		return
 	}
+	_ = e.store.SaveEvalRun(ctx, run)
 	_ = e.store.SaveEvalResult(ctx, res)
 	_ = e.store.SaveOTelSpan(ctx, span)
 }
