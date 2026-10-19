@@ -82,14 +82,28 @@ redteam:
     - id: "gort:plugin:agentic:memory-poisoning"
 
 # 5. ATTACK STRATEGIES
+# Uncomment additional static, layered, or multi-turn strategies to multiply test coverage:
 strategies:
   - id: "gort:strategy:basic"
-  - id: "gort:strategy:base64"
-  - id: "gort:strategy:rot13"
-  - id: "gort:strategy:jailbreak-templates"
-  - id: "gort:strategy:crescendo"
-    maxTurns: 5
-    maxBacktracks: 3
+  # - id: "gort:strategy:base64"
+  # - id: "gort:strategy:rot13"
+  # - id: "gort:strategy:hex"
+  # - id: "gort:strategy:leetspeak"
+  # - id: "gort:strategy:homoglyph"
+  # - id: "gort:strategy:jailbreak-templates"
+  # - id: "gort:strategy:layer"
+  #   steps:
+  #     - "gort:strategy:jailbreak-templates"
+  #     - "gort:strategy:base64"
+  # - id: "gort:strategy:crescendo"
+  #   maxTurns: 5
+  #   maxBacktracks: 3
+  # - id: "gort:strategy:goat"
+  #   maxTurns: 4
+  #   maxBacktracks: 2
+  # - id: "gort:strategy:hydra"
+  #   maxTurns: 4
+  #   maxBacktracks: 2
 
 # 6. DATABASE & OPENTELEMETRY PERSISTENCE
 storage:
