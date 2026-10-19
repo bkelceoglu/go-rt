@@ -53,6 +53,7 @@ func (e *Evaluator) ExecuteRun(ctx context.Context, cfg *domain.Config, cases []
 	if e.store != nil {
 		_ = e.store.SaveEvalRun(ctx, run)
 	}
+	telemetry.LogRunStart(run)
 
 	stats, err := e.runConcurrentCases(ctx, run, start, cases, target, cfg)
 	if err != nil {
@@ -66,6 +67,7 @@ func (e *Evaluator) ExecuteRun(ctx context.Context, cfg *domain.Config, cases []
 	if e.store != nil {
 		_ = e.store.SaveEvalRun(ctx, run)
 	}
+	telemetry.LogRunComplete(run)
 	return run, nil
 }
 
@@ -121,6 +123,7 @@ func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, s
 	res := e.gradeResponse(ctx, run, tc, rendered, resp, cfg, &span)
 	snap := e.updateRunStats(stats, run, start, res.Pass, resp.TokenUsage.Total)
 	e.persistResult(ctx, snap, res, span)
+	telemetry.LogCaseResult(idx, total, tc, res)
 	printLiveResultLine(idx, total, tc, res)
 	if e.verbose {
 		printVerboseCaseDetail(tc, res)

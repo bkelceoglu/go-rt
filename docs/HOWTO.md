@@ -240,7 +240,18 @@ You do **not** need an external `sqlite3` CLI binary installed to inspect past r
 ./bin/gort results 1 --verbose
 ```
 
-### 6.2. Optional Direct SQLite Queries (`sqlite3`)
+### 6.2. Real-Time File Log Streaming (`tail -f .gort/gort.log`)
+Even if you run `gort` **without** `--verbose` (or as a background daemon / CI job), GORT continuously appends timestamped RFC3339 events (`[RUN_START]`, `[SYNTH]`, `[PASS]`/`[FAIL]`, `[DETAIL]`, `[TURN]`, `[RUN_COMPLETE]`) to **`.gort/gort.log`**:
+
+```bash
+# Watch all live attack prompts, Crescendo turns, and Judge verdicts from another terminal:
+tail -f .gort/gort.log
+
+# Filter only failed test cases (successful jailbreaks) in real time:
+tail -f .gort/gort.log | grep "\[FAIL  \]"
+```
+
+### 6.3. Optional Direct SQLite Queries (`sqlite3`)
 If you also want to query `.gort/gort.db` from external BI tools or scripts:
 
 ```bash

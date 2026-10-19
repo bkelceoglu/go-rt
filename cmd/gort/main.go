@@ -17,6 +17,7 @@ import (
 	"github.com/caveman/go-rt/internal/provider"
 	"github.com/caveman/go-rt/internal/store"
 	"github.com/caveman/go-rt/internal/strategy"
+	"github.com/caveman/go-rt/internal/telemetry"
 	"github.com/caveman/go-rt/internal/template"
 	"github.com/caveman/go-rt/internal/ui"
 )
@@ -56,6 +57,7 @@ func run(args []string, in io.Reader) error {
 }
 
 func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
+	_ = telemetry.EnableLiveLog(telemetry.DefaultLogPath)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	if _, err := dataset.EnsureBootstrapped(ctx, db, defaultPromptsDir); err != nil {
@@ -203,6 +205,7 @@ func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *
 			fmt.Printf("  %s Failed synthesizing for %s: %v\n", ui.Badge("FAIL"), spec.ID, err)
 			continue
 		}
+		telemetry.LogSynthesizedCases(spec.ID, cases)
 		if verbose {
 			printVerboseSynthesizedCases(spec.ID, cases)
 		}
@@ -265,8 +268,8 @@ func evaluateSingleTarget(ctx context.Context, cfg *domain.Config, evaluator *en
 	if err != nil {
 		return err
 	}
-	fmt.Printf("       Target: %s | Test Cases (after strategies): %s\n",
-		ui.Bold(target.ID()), ui.BoldGreen(fmt.Sprintf("%d", len(expanded))))
+	fmt.Printf("       Target: %s | Test Cases (after strategies): %s | Live Log: %s\n",
+		ui.Bold(target.ID()), ui.BoldGreen(fmt.Sprintf("%d", len(expanded))), ui.Cyan("tail -f "+telemetry.DefaultLogPath))
 	run, err := evaluator.ExecuteRun(ctx, cfg, expanded, target)
 	if err != nil {
 		return err

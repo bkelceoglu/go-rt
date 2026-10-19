@@ -121,6 +121,9 @@ make all
 ./bin/gort results
 ./bin/gort results 1
 ./bin/gort results 1 --verbose
+
+# Follow the real-time structured log stream from another terminal during any run
+tail -f .gort/gort.log
 ```
 
 ---
