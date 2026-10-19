@@ -59,9 +59,10 @@ type PluginSpec struct {
 
 // StrategySpec identifies an attack mutation or multi-turn strategy.
 type StrategySpec struct {
-	ID            string `json:"id" yaml:"id"`
-	MaxTurns      int    `json:"maxTurns,omitempty" yaml:"maxTurns,omitempty"`
-	MaxBacktracks int    `json:"maxBacktracks,omitempty" yaml:"maxBacktracks,omitempty"`
+	ID            string   `json:"id" yaml:"id"`
+	Steps         []string `json:"steps,omitempty" yaml:"steps,omitempty"`
+	MaxTurns      int      `json:"maxTurns,omitempty" yaml:"maxTurns,omitempty"`
+	MaxBacktracks int      `json:"maxBacktracks,omitempty" yaml:"maxBacktracks,omitempty"`
 }
 
 // StorageSpec configures OpenTelemetry-compatible SQLite, PostgreSQL, and OTLP persistence.
