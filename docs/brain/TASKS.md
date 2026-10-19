@@ -50,7 +50,7 @@
 ---
 
 ## Faz 5: Statik ve Agentic Multi-Turn Stratejiler (`gort:strategy:*`) ⏳
-- [ ] **Adım 5.1 — Statik Kodlama & Obfuscation Stratejileri (`internal/strategy/static.go` + `static_test.go`):**
+- [x] **Adım 5.1 — Statik Kodlama & Obfuscation Stratejileri (`internal/strategy/static.go` + `static_test.go`):**
   - `gort:strategy:basic` (kimlik geçişi), `gort:strategy:base64`, `gort:strategy:rot13`, `gort:strategy:hex`, `gort:strategy:leetspeak` ve `gort:strategy:homoglyph` dönüşümleri (`Metadata.StrategyID` ve `Metadata.OriginalText` korunarak).
 - [ ] **Adım 5.2 — Jailbreak Şablonları & Katmanlı Strateji Hattı (`internal/strategy/templates.go` + `pipeline.go` + `pipeline_test.go`):**
   - `gort:strategy:jailbreak-templates` (kurumsal rol yapma / çerçeveleme sarmalayıcıları) ve `gort:strategy:layer` / `ApplyStrategies` boru hattı (`StrategyExempt` pluginleri koruyarak tüm aktif stratejileri çoğaltan/uygulayan orkestratör).
