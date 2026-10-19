@@ -79,3 +79,40 @@ func TestExpandWithStrategiesRespectsStrategyExemptPlugins(t *testing.T) {
 		t.Errorf("expected exempt case untouched at index 0, got %+v", expanded[0])
 	}
 }
+
+type dummyProvider struct{ id string }
+
+func (d *dummyProvider) ID() string { return d.id }
+func (d *dummyProvider) Call(_ context.Context, _ domain.PromptRequest) (domain.ProviderResponse, error) {
+	return domain.ProviderResponse{Output: "I cannot fulfill this request."}, nil
+}
+
+func TestMultiTurnStrategyAttachesTargetOverride(t *testing.T) {
+	cases := []domain.TestCase{
+		{
+			ID:       "mt-1",
+			Vars:     domain.Vars{"prompt": "Escalate privilege"},
+			Metadata: domain.Metadata{PluginID: "gort:plugin:rbac"},
+		},
+	}
+	specs := []domain.StrategySpec{
+		{ID: StrategyCrescendo, MaxTurns: 4, MaxBacktracks: 2},
+		{ID: StrategyGOAT, MaxTurns: 3, MaxBacktracks: 1},
+		{ID: StrategyHydra, MaxTurns: 3, MaxBacktracks: 2},
+	}
+	target := &dummyProvider{id: "localai:chat:qwen3.8-9b-q4"}
+	attacker := &dummyProvider{id: "localai:chat:qwen3.8-9b-q4"}
+
+	expanded, err := ExpandForTarget(context.Background(), cases, specs, nil, "prompt", target, attacker)
+	if err != nil {
+		t.Fatalf("ExpandForTarget error: %v", err)
+	}
+	if len(expanded) != 3 {
+		t.Fatalf("expected 3 multi-turn expanded cases, got %d", len(expanded))
+	}
+	for _, tc := range expanded {
+		if tc.TargetOverride == nil {
+			t.Errorf("expected TargetOverride to be attached for strategy %s", tc.Metadata.StrategyID)
+		}
+	}
+}

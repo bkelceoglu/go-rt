@@ -49,14 +49,14 @@
 
 ---
 
-## Faz 5: Statik ve Agentic Multi-Turn Stratejiler (`gort:strategy:*`) ⏳
+## Faz 5: Statik ve Agentic Multi-Turn Stratejiler (`gort:strategy:*`) ✅
 - [x] **Adım 5.1 — Statik Kodlama & Obfuscation Stratejileri (`internal/strategy/static.go` + `static_test.go`):**
   - `gort:strategy:basic` (kimlik geçişi), `gort:strategy:base64`, `gort:strategy:rot13`, `gort:strategy:hex`, `gort:strategy:leetspeak` ve `gort:strategy:homoglyph` dönüşümleri (`Metadata.StrategyID` ve `Metadata.OriginalText` korunarak).
 - [x] **Adım 5.2 — Jailbreak Şablonları & Katmanlı Strateji Hattı (`internal/strategy/templates.go` + `pipeline.go` + `pipeline_test.go`):**
   - `gort:strategy:jailbreak-templates` (kurumsal rol yapma / çerçeveleme sarmalayıcıları) ve `gort:strategy:layer` / `ExpandWithStrategies` boru hattı (`StrategyExempt` pluginleri koruyarak tüm aktif stratejileri çoğaltan/uygulayan orkestratör).
 - [x] **Adım 5.3 — Agentic Konuşma Hafızası & Engel Açıcı (`internal/provider/agentic/memory.go` + `unblocking.go` + `memory_test.go`):**
   - Çok turlu konuşma geçmişi (`ConversationMemory`), hedef reddettiğinde son turu geri saran `RollbackLastTurn()` (Backtracking) ve hedefin karşı sorularını yanıtlayan `Unblocker` modülü.
-- [ ] **Adım 5.4 — Çok Turlu Crescendo / GOAT / Hydra Dekoratörleri & Motor Entegrasyonu (`internal/provider/agentic/crescendo.go` + `crescendo_test.go` + `evaluator.go` + `cmd/gort/main.go`):**
+- [x] **Adım 5.4 — Çok Turlu Crescendo / GOAT / Hydra Dekoratörleri & Motor Entegrasyonu (`internal/provider/agentic/crescendo.go` + `crescendo_test.go` + `evaluator.go` + `cmd/gort/main.go`):**
   - `gort:strategy:crescendo` (ve `goat` / `hydra` varyantları) için `TargetOverride` sarmalayıcısı (`CrescendoDecorator`), `Evaluator` içinde `tc.TargetOverride` desteği ve CLI akışına tam entegrasyon.
 
 ---

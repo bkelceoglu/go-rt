@@ -101,7 +101,8 @@ func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, t
 	rendered := renderer.Render(cfg.PromptTemplate, tc.Vars)
 	span := telemetry.NewSpan(run.TraceID, "", run.EvalID, tc.ID, "gort.eval.test_case", domain.SpanKindClient)
 
-	resp, err := target.Call(ctx, domain.PromptRequest{Prompt: rendered, Vars: tc.Vars, TestCase: tc})
+	effectiveTarget := resolveCaseTarget(target, tc)
+	resp, err := effectiveTarget.Call(ctx, domain.PromptRequest{Prompt: rendered, Vars: tc.Vars, TestCase: tc})
 	if err != nil {
 		telemetry.FinishSpan(&span, false)
 		return e.recordFailedResult(ctx, run, tc, rendered, err.Error(), span, stats, idx, total)
@@ -112,6 +113,13 @@ func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, t
 	e.persistResult(ctx, res, span)
 	printLiveResultLine(idx, total, tc, res)
 	return nil
+}
+
+func resolveCaseTarget(defaultTarget domain.Provider, tc domain.TestCase) domain.Provider {
+	if tc.TargetOverride != nil {
+		return tc.TargetOverride
+	}
+	return defaultTarget
 }
 
 func (e *Evaluator) gradeResponse(ctx context.Context, run domain.EvalRun, tc domain.TestCase, rendered string, resp domain.ProviderResponse, cfg *domain.Config, span *domain.OTelSpanRecord) domain.EvalResult {
@@ -141,25 +149,26 @@ func evaluateRefusalAndForbidden(output string, forbidden []string) (bool, strin
 
 func buildEvalResultRecord(run domain.EvalRun, tc domain.TestCase, rendered string, resp domain.ProviderResponse, pass bool, score float64, reason, spanID string) domain.EvalResult {
 	return domain.EvalResult{
-		ResultID:       fmt.Sprintf("res-%s", telemetry.GenerateSpanID()),
-		EvalID:         run.EvalID,
-		TraceID:        run.TraceID,
-		SpanID:         spanID,
-		PluginID:       tc.Metadata.PluginID,
-		Category:       tc.Metadata.Purpose,
-		AttackType:     tc.Metadata.Goal,
-		Source:         tc.Metadata.OriginalText,
-		StrategyID:     tc.Metadata.StrategyID,
-		Severity:       tc.Metadata.Severity,
-		RawPrompt:      tc.Vars["prompt"],
-		RenderedPrompt: rendered,
-		TargetOutput:   resp.Output,
-		Pass:           pass,
-		Score:          score,
-		JudgeReason:    reason,
-		LatencyMs:      resp.LatencyMs,
-		TokenUsage:     resp.TokenUsage,
-		CreatedAt:      time.Now(),
+		ResultID:            fmt.Sprintf("res-%s", telemetry.GenerateSpanID()),
+		EvalID:              run.EvalID,
+		TraceID:             run.TraceID,
+		SpanID:              spanID,
+		PluginID:            tc.Metadata.PluginID,
+		Category:            tc.Metadata.Purpose,
+		AttackType:          tc.Metadata.Goal,
+		Source:              tc.Metadata.OriginalText,
+		StrategyID:          tc.Metadata.StrategyID,
+		Severity:            tc.Metadata.Severity,
+		RawPrompt:           tc.Vars["prompt"],
+		RenderedPrompt:      rendered,
+		TargetOutput:        resp.Output,
+		Pass:                pass,
+		Score:               score,
+		JudgeReason:         reason,
+		LatencyMs:           resp.LatencyMs,
+		TokenUsage:          resp.TokenUsage,
+		ConversationHistory: resp.ConversationHistory,
+		CreatedAt:           time.Now(),
 	}
 }
 

@@ -95,11 +95,12 @@ type PromptRequest struct {
 
 // ProviderResponse contains the model or target output, latency, and token metrics.
 type ProviderResponse struct {
-	Output     string     `json:"output"`
-	SessionID  string     `json:"sessionId,omitempty"`
-	LatencyMs  int64      `json:"latencyMs"`
-	Cached     bool       `json:"cached"`
-	TokenUsage TokenUsage `json:"tokenUsage"`
+	Output              string             `json:"output"`
+	SessionID           string             `json:"sessionId,omitempty"`
+	LatencyMs           int64              `json:"latencyMs"`
+	Cached              bool               `json:"cached"`
+	TokenUsage          TokenUsage         `json:"tokenUsage"`
+	ConversationHistory []ConversationTurn `json:"conversationHistory,omitempty"`
 }
 
 // GradingResult represents the pass/fail verdict and score from a Grader.

@@ -16,6 +16,7 @@ import (
 	"github.com/caveman/go-rt/internal/plugin"
 	"github.com/caveman/go-rt/internal/provider"
 	"github.com/caveman/go-rt/internal/store"
+	"github.com/caveman/go-rt/internal/strategy"
 	"github.com/caveman/go-rt/internal/template"
 	"github.com/caveman/go-rt/internal/ui"
 )
@@ -226,17 +227,51 @@ func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginR
 
 func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
 	judge := buildJudgeProvider(cfg.Judge)
+	attacker := buildAttackerProvider(cfg.Attacker)
+	exemptMap := loadStrategyExemptMap(ctx, db)
+	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	evaluator := engine.NewEvaluator(db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
+
 	for _, targetSpec := range cfg.Targets {
-		target := buildProviderFromSpec(targetSpec)
-		fmt.Printf("       Target: %s\n", ui.Bold(target.ID()))
-		run, err := evaluator.ExecuteRun(ctx, cfg, cases, target)
-		if err != nil {
+		if err := evaluateSingleTarget(ctx, cfg, evaluator, targetSpec, attacker, exemptMap, injectVar, setName, cases); err != nil {
 			return err
 		}
-		printRunCompletionCard(setName, run)
 	}
 	return nil
+}
+
+func evaluateSingleTarget(ctx context.Context, cfg *domain.Config, evaluator *engine.Evaluator, targetSpec domain.ProviderSpec, attacker domain.Provider, exemptMap map[string]bool, injectVar, setName string, cases []domain.TestCase) error {
+	target := buildProviderFromSpec(targetSpec)
+	expanded, err := strategy.ExpandForTarget(ctx, cases, cfg.Strategies, exemptMap, injectVar, target, attacker)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("       Target: %s | Test Cases (after strategies): %s\n",
+		ui.Bold(target.ID()), ui.BoldGreen(fmt.Sprintf("%d", len(expanded))))
+	run, err := evaluator.ExecuteRun(ctx, cfg, expanded, target)
+	if err != nil {
+		return err
+	}
+	printRunCompletionCard(setName, run)
+	return nil
+}
+
+func loadStrategyExemptMap(ctx context.Context, db *store.SQLiteStore) map[string]bool {
+	recs, _ := plugin.All(ctx, db)
+	out := make(map[string]bool, len(recs))
+	for _, r := range recs {
+		if r.StrategyExempt {
+			out[r.ID] = true
+		}
+	}
+	return out
+}
+
+func buildAttackerProvider(spec domain.ProviderSpec) domain.Provider {
+	if spec.ID == "" {
+		return nil
+	}
+	return buildProviderFromSpec(spec)
 }
 
 func promptAttackerConfirmation(cfg *domain.Config, in io.Reader) (bool, error) {
@@ -262,10 +297,8 @@ func executeDatasetFlow(configPath string, cfg *domain.Config, db *store.SQLiteS
 	fmt.Printf("%s Loaded Config   : %s | Targets: %d | Judge: %s | Active Plugins: %d | Strategies: %d (%s)\n",
 		ui.PrefixGort(), configPath, len(cfg.Targets), cfg.Judge.ID, len(cfg.Redteam.Plugins), len(cfg.Strategies), joinStrategyIDs(cfg.Strategies))
 
-	judgeProvider := buildJudgeProvider(cfg.Judge)
-	evaluator := engine.NewEvaluator(db, judgeProvider, cfg.Judge.Rubric, cfg.MaxConcurrency)
 	for i, set := range sets {
-		if err := runSingleNamedSet(i+1, len(sets), cfg, evaluator, set); err != nil {
+		if err := runSingleNamedSet(i+1, len(sets), cfg, db, set); err != nil {
 			fmt.Printf("%s Error executing prompt set %s: %v\n", ui.PrefixGort(), set.Name, err)
 		}
 	}
@@ -280,23 +313,12 @@ func joinStrategyIDs(strategies []domain.StrategySpec) string {
 	return strings.Join(ids, ", ")
 }
 
-func runSingleNamedSet(idx, total int, cfg *domain.Config, evaluator *engine.Evaluator, set dataset.NamedDataset) error {
+func runSingleNamedSet(idx, total int, cfg *domain.Config, db *store.SQLiteStore, set dataset.NamedDataset) error {
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	cases := dataset.RecordsToTestCases(set.Records, injectVar)
-	fmt.Printf("\n%s [%d/%d] Running Prompt Set %s : %s prompts (via SQLite prompt_bank)\n",
+	fmt.Printf("\n%s [%d/%d] Running Prompt Set %s : %s seed prompts (via SQLite prompt_bank)\n",
 		ui.PrefixGort(), idx, total, ui.BoldCyan(set.Name), ui.BoldGreen(fmt.Sprintf("%d", len(cases))))
-
-	ctx := context.Background()
-	for _, targetSpec := range cfg.Targets {
-		target := buildProviderFromSpec(targetSpec)
-		fmt.Printf("       Target: %s\n", ui.Bold(target.ID()))
-		run, err := evaluator.ExecuteRun(ctx, cfg, cases, target)
-		if err != nil {
-			return err
-		}
-		printRunCompletionCard(set.Name, run)
-	}
-	return nil
+	return runTargetsEvaluation(context.Background(), cfg, db, set.Name, cases)
 }
 
 func printRunCompletionCard(setName string, run domain.EvalRun) {
