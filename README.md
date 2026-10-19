@@ -98,9 +98,14 @@ make all
 
 ### 3. Run an Assessment Against Your Target Model
 ```bash
-# Run a single named dataset from SQLite prompt_bank (does NOT invoke Attacker LLM synthesis)
+# Run a single named dataset from SQLite prompt_bank by name OR by 'gort ls' numeric index (1..20)
 ./bin/gort enterprise_security_suite
-./bin/gort lakera_gandalf --verbose
+./bin/gort 18 --verbose
+./bin/gort lakera_gandalf -v
+
+# Run a SQLite dataset (by index or name) using a custom config file and live verbose trace
+./bin/gort _first_dry_config.yaml 18 --verbose
+./bin/gort _first_dry_config.yaml shomi28_injections -v
 
 # Run a custom CSV file
 ./bin/gort config.yaml prompts/enterprise_security_suite.csv
@@ -110,9 +115,11 @@ make all
 
 # Synthesize fresh adversarial prompts dynamically via Attacker LLM (with live verbose trace)
 ./bin/gort config.yaml --verbose
+./bin/gort _first_dry_config.yaml -v
 
 # Inspect past assessment runs and detailed transcripts stored in SQLite (.gort/gort.db)
 ./bin/gort results
+./bin/gort results 1
 ./bin/gort results 1 --verbose
 ```
 
