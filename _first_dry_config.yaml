@@ -18,14 +18,14 @@ targets:
     label: "Target Assistant (Qwen 3.8 9B Q4)"
     baseUrl: "http://localhost:8090"
     temperature: 0.1
-    maxTokens: 256
+    maxTokens: 512
 
 # 2. ATTACKER LLM (Synthesizes Section 4 plugins & drives Section 5 Crescendo turns)
 attacker:
-  id: "localai:chat:qwen3.8-9b-q4"
+  id: "localai:chat:qwen3-4b"
   baseUrl: "http://localhost:8090"
   temperature: 0.7
-  maxTokens: 256
+  maxTokens: 512
 
 # 3. JUDGE LLM (Independent Qwen 3 4B model scoring target responses)
 judge:

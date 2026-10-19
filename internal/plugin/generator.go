@@ -90,8 +90,8 @@ func parseLineSeparatedFallback(s string) []string {
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
 		trimmed = strings.TrimLeft(trimmed, "0123456789.-* ")
-		trimmed = strings.Trim(trimmed, `"'`)
-		if len(trimmed) > 10 {
+		trimmed = strings.Trim(trimmed, `[]"'`)
+		if len(trimmed) > 10 && !strings.HasPrefix(strings.ToLower(trimmed), "thinking process") {
 			res = append(res, trimmed)
 		}
 	}

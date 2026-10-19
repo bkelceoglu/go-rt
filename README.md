@@ -100,7 +100,7 @@ make all
 ```bash
 # Run a single named dataset from SQLite prompt_bank (does NOT invoke Attacker LLM synthesis)
 ./bin/gort enterprise_security_suite
-./bin/gort lakera_gandalf
+./bin/gort lakera_gandalf --verbose
 
 # Run a custom CSV file
 ./bin/gort config.yaml prompts/enterprise_security_suite.csv
@@ -108,8 +108,12 @@ make all
 # Run ALL 20 datasets sequentially
 ./bin/gort all
 
-# Synthesize fresh adversarial prompts dynamically via Attacker LLM (prompts [y/N] confirmation)
-./bin/gort config.yaml
+# Synthesize fresh adversarial prompts dynamically via Attacker LLM (with live verbose trace)
+./bin/gort config.yaml --verbose
+
+# Inspect past assessment runs and detailed transcripts stored in SQLite (.gort/gort.db)
+./bin/gort results
+./bin/gort results 1 --verbose
 ```
 
 ---

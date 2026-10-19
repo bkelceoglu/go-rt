@@ -129,10 +129,18 @@ func (d *CrescendoDecorator) synthesizeTurnProbe(ctx context.Context, objective 
 	}
 	prompt := buildAttackerTurnPrompt(d.strategyID, objective, turn, d.maxTurns, transcript, backtracks)
 	resp, err := d.attacker.Call(ctx, domain.PromptRequest{Prompt: prompt})
-	if err != nil || strings.TrimSpace(resp.Output) == "" {
+	out := strings.TrimSpace(resp.Output)
+	if err != nil || out == "" || grader.IsBasicRefusal(out) || isLeakedReasoning(out) {
 		return fallbackTurnProbe(objective, turn, d.maxTurns), resp.TokenUsage
 	}
-	return strings.TrimSpace(resp.Output), resp.TokenUsage
+	return out, resp.TokenUsage
+}
+
+func isLeakedReasoning(out string) bool {
+	lower := strings.ToLower(out)
+	return strings.HasPrefix(lower, "thinking process:") ||
+		strings.HasPrefix(lower, "okay, let's") ||
+		strings.HasPrefix(lower, "okay, the user")
 }
 
 func buildAttackerTurnPrompt(strategyID, objective string, turn, maxTurns int, transcript string, backtracks int) string {
