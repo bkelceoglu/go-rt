@@ -33,12 +33,15 @@ func appendExpandedSpec(
 	spec domain.PluginSpec,
 	defaultNum int,
 ) []domain.PluginSpec {
-	num := max(spec.NumTests, defaultNum)
+	num := spec.NumTests
+	if num <= 0 {
+		num = defaultNum
+	}
 	if members, ok := collections[spec.ID]; ok {
 		for _, id := range members {
 			if !seen[id] {
 				seen[id] = true
-				out = append(out, domain.PluginSpec{ID: id, NumTests: num, Severity: spec.Severity})
+				out = append(out, domain.PluginSpec{ID: id, NumTests: num, Severity: spec.Severity, Config: spec.Config})
 			}
 		}
 		return out

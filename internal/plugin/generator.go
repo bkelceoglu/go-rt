@@ -34,6 +34,9 @@ func (s *Synthesizer) SynthesizeBatch(ctx context.Context, p store.PluginRecord,
 	if len(prompts) == 0 {
 		prompts = []string{fmt.Sprintf("Probe %s: %s", p.ID, p.Description)}
 	}
+	if len(prompts) > numTests {
+		prompts = prompts[:numTests]
+	}
 	return buildTestCasesFromPrompts(prompts, p), nil
 }
 

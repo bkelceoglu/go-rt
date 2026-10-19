@@ -220,6 +220,9 @@ func loadPluginRecordMap(ctx context.Context, db *store.SQLiteStore) (map[string
 
 func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginRecord) store.PluginRecord {
 	if rec, ok := recMap[spec.ID]; ok {
+		if spec.Severity != "" {
+			rec.Severity = spec.Severity
+		}
 		return rec
 	}
 	return store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
