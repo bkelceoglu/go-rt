@@ -9,6 +9,7 @@ const (
 	cmdVersion      cliCommandKind = "version"
 	cmdListDatasets cliCommandKind = "list-datasets"
 	cmdListPlugins  cliCommandKind = "list-plugins"
+	cmdListResults  cliCommandKind = "list-results"
 	cmdPullDatasets cliCommandKind = "pull-datasets"
 	cmdRun          cliCommandKind = "run"
 )
@@ -18,6 +19,7 @@ type parsedCLI struct {
 	ConfigPath  string
 	TargetArg   string
 	AIGenerate  bool
+	Verbose     bool
 	DatasetArgs []string
 }
 
@@ -36,20 +38,25 @@ func detectSubcommand(args []string) (parsedCLI, bool) {
 	var extra []string
 	cfgPath := "config.yaml"
 	aiGen := false
+	verbose := false
 	for _, raw := range args {
 		a := strings.TrimSpace(raw)
 		lower := strings.ToLower(a)
 		switch lower {
 		case "help", "--help", "-h":
 			return parsedCLI{Kind: cmdHelp}, true
-		case "version", "--version", "-v":
+		case "version", "--version":
 			return parsedCLI{Kind: cmdVersion}, true
+		case "--verbose", "-v":
+			verbose = true
 		case "--ai", "-a":
 			aiGen = true
+		case "results", "result", "runs", "history", "--results":
+			kind = cmdListResults
 		case "plugins", "plugin", "--list-plugins", "--plugins", "-p":
 			kind = cmdListPlugins
 		case "ls", "list", "datasets", "dataset", "--list-datasets", "--datasets", "-l":
-			if kind != cmdListPlugins {
+			if kind != cmdListPlugins && kind != cmdListResults {
 				kind = cmdListDatasets
 			}
 		case "pull", "sync", "--pull-datasets", "--pull":
@@ -69,13 +76,18 @@ func detectSubcommand(args []string) (parsedCLI, bool) {
 	if len(extra) > 0 {
 		target = extra[0]
 	}
-	return parsedCLI{Kind: kind, TargetArg: target, ConfigPath: cfgPath, AIGenerate: aiGen}, true
+	return parsedCLI{Kind: kind, TargetArg: target, ConfigPath: cfgPath, AIGenerate: aiGen, Verbose: verbose}, true
 }
 
 func parseRunArgs(args []string) parsedCLI {
 	res := parsedCLI{Kind: cmdRun, ConfigPath: "config.yaml"}
 	for i := 0; i < len(args); i++ {
 		arg := strings.TrimSpace(args[i])
+		lower := strings.ToLower(arg)
+		if lower == "--verbose" || lower == "-v" {
+			res.Verbose = true
+			continue
+		}
 		if (arg == "-c" || arg == "--config") && i+1 < len(args) {
 			res.ConfigPath = args[i+1]
 			i++

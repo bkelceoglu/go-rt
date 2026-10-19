@@ -93,10 +93,15 @@ func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader
 			return inspectPluginDetail(db, parsed.TargetArg, parsed.AIGenerate, parsed.ConfigPath)
 		}
 		return printPluginCatalog(db)
+	case cmdListResults:
+		if parsed.TargetArg != "" {
+			return inspectEvalRunResults(db, parsed.TargetArg, parsed.Verbose)
+		}
+		return printEvalRuns(db)
 	case cmdPullDatasets:
 		return runPullDatasets(db)
 	default:
-		return executeAssessment(parsed.ConfigPath, parsed.DatasetArgs, db, in)
+		return executeAssessment(parsed.ConfigPath, parsed.DatasetArgs, parsed.Verbose, db, in)
 	}
 }
 
@@ -145,7 +150,7 @@ func runPullDatasets(db *store.SQLiteStore) error {
 	return printDatasetCatalog(db)
 }
 
-func executeAssessment(configPath string, datasetArgs []string, db *store.SQLiteStore, in io.Reader) error {
+func executeAssessment(configPath string, datasetArgs []string, verbose bool, db *store.SQLiteStore, in io.Reader) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err
@@ -156,28 +161,28 @@ func executeAssessment(configPath string, datasetArgs []string, db *store.SQLite
 	}
 	cfg.Redteam.Plugins = expanded
 	if len(datasetArgs) == 0 {
-		return executeAttackerSynthesisFlow(&cfg, db, in)
+		return executeAttackerSynthesisFlow(&cfg, verbose, db, in)
 	}
-	return executeDatasetFlow(configPath, &cfg, db, datasetArgs)
+	return executeDatasetFlow(configPath, &cfg, verbose, db, datasetArgs)
 }
 
-func executeAttackerSynthesisFlow(cfg *domain.Config, db *store.SQLiteStore, in io.Reader) error {
+func executeAttackerSynthesisFlow(cfg *domain.Config, verbose bool, db *store.SQLiteStore, in io.Reader) error {
 	confirmed, err := promptAttackerConfirmation(cfg, in)
 	if err != nil || !confirmed {
 		fmt.Printf("%s Operation canceled by user.\n", ui.PrefixGort())
 		return err
 	}
 	ctx := context.Background()
-	allCases, err := synthesizeAllCases(ctx, cfg, db)
+	allCases, err := synthesizeAllCases(ctx, cfg, verbose, db)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("%s Synthesized %s attack prompts. Starting assessment...\n",
 		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", len(allCases))))
-	return runTargetsEvaluation(ctx, cfg, db, "synthetic_redteam", allCases)
+	return runTargetsEvaluation(ctx, cfg, verbose, db, "synthetic_redteam", allCases)
 }
 
-func synthesizeAllCases(ctx context.Context, cfg *domain.Config, db *store.SQLiteStore) ([]domain.TestCase, error) {
+func synthesizeAllCases(ctx context.Context, cfg *domain.Config, verbose bool, db *store.SQLiteStore) ([]domain.TestCase, error) {
 	recMap, err := loadPluginRecordMap(ctx, db)
 	if err != nil {
 		return nil, err
@@ -186,10 +191,10 @@ func synthesizeAllCases(ctx context.Context, cfg *domain.Config, db *store.SQLit
 	syn := plugin.NewSynthesizer(attacker)
 	fmt.Printf("\n%s Synthesizing dynamic prompts via Attacker LLM (%s)...\n",
 		ui.PrefixGort(), ui.Bold(attacker.ID()))
-	return collectSynthesizedCases(ctx, syn, cfg, recMap)
+	return collectSynthesizedCases(ctx, syn, cfg, verbose, recMap)
 }
 
-func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *domain.Config, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
+func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *domain.Config, verbose bool, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
 	var allCases []domain.TestCase
 	for _, spec := range cfg.Redteam.Plugins {
 		rec := resolvePluginRecord(spec, recMap)
@@ -198,12 +203,22 @@ func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *
 			fmt.Printf("  %s Failed synthesizing for %s: %v\n", ui.Badge("FAIL"), spec.ID, err)
 			continue
 		}
+		if verbose {
+			printVerboseSynthesizedCases(spec.ID, cases)
+		}
 		allCases = append(allCases, cases...)
 	}
 	if len(allCases) == 0 {
 		return nil, fmt.Errorf("no test cases could be synthesized by attacker LLM")
 	}
 	return allCases, nil
+}
+
+func printVerboseSynthesizedCases(pluginID string, cases []domain.TestCase) {
+	for i, tc := range cases {
+		fmt.Printf("  %s [%s #%d] %s\n",
+			ui.BoldCyan("[SYNTHESIZED]"), pluginID, i+1, ui.Yellow(tc.Vars["prompt"]))
+	}
 }
 
 func loadPluginRecordMap(ctx context.Context, db *store.SQLiteStore) (map[string]store.PluginRecord, error) {
@@ -228,12 +243,13 @@ func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginR
 	return store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
 }
 
-func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
+func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, verbose bool, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
 	judge := buildJudgeProvider(cfg.Judge)
 	attacker := buildAttackerProvider(cfg.Attacker)
 	exemptMap := loadStrategyExemptMap(ctx, db)
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	evaluator := engine.NewEvaluator(db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
+	evaluator.SetVerbose(verbose)
 
 	for _, targetSpec := range cfg.Targets {
 		if err := evaluateSingleTarget(ctx, cfg, evaluator, targetSpec, attacker, exemptMap, injectVar, setName, cases); err != nil {
@@ -292,7 +308,7 @@ func promptAttackerConfirmation(cfg *domain.Config, in io.Reader) (bool, error) 
 	return ans == "y" || ans == "yes", nil
 }
 
-func executeDatasetFlow(configPath string, cfg *domain.Config, db *store.SQLiteStore, datasetArgs []string) error {
+func executeDatasetFlow(configPath string, cfg *domain.Config, verbose bool, db *store.SQLiteStore, datasetArgs []string) error {
 	sets, err := dataset.ResolveDatasets(context.Background(), db, cfg.PromptsDir, datasetArgs)
 	if err != nil {
 		return err
@@ -301,7 +317,7 @@ func executeDatasetFlow(configPath string, cfg *domain.Config, db *store.SQLiteS
 		ui.PrefixGort(), configPath, len(cfg.Targets), cfg.Judge.ID, len(cfg.Redteam.Plugins), len(cfg.Strategies), joinStrategyIDs(cfg.Strategies))
 
 	for i, set := range sets {
-		if err := runSingleNamedSet(i+1, len(sets), cfg, db, set); err != nil {
+		if err := runSingleNamedSet(i+1, len(sets), cfg, verbose, db, set); err != nil {
 			fmt.Printf("%s Error executing prompt set %s: %v\n", ui.PrefixGort(), set.Name, err)
 		}
 	}
@@ -316,12 +332,12 @@ func joinStrategyIDs(strategies []domain.StrategySpec) string {
 	return strings.Join(ids, ", ")
 }
 
-func runSingleNamedSet(idx, total int, cfg *domain.Config, db *store.SQLiteStore, set dataset.NamedDataset) error {
+func runSingleNamedSet(idx, total int, cfg *domain.Config, verbose bool, db *store.SQLiteStore, set dataset.NamedDataset) error {
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	cases := dataset.RecordsToTestCases(set.Records, injectVar)
 	fmt.Printf("\n%s [%d/%d] Running Prompt Set %s : %s seed prompts (via SQLite prompt_bank)\n",
 		ui.PrefixGort(), idx, total, ui.BoldCyan(set.Name), ui.BoldGreen(fmt.Sprintf("%d", len(cases))))
-	return runTargetsEvaluation(context.Background(), cfg, db, set.Name, cases)
+	return runTargetsEvaluation(context.Background(), cfg, verbose, db, set.Name, cases)
 }
 
 func printRunCompletionCard(setName string, run domain.EvalRun) {
@@ -364,10 +380,11 @@ func buildJudgeProvider(spec domain.JudgeSpec) domain.Provider {
 func printUsage() {
 	fmt.Printf("GORT v%s — Enterprise AI Red Teaming & Evaluation Engine (SQLite-Backed)\n\n", version)
 	fmt.Println("Usage / Commands:")
-	fmt.Println("  gort [config.yaml] <dataset_name>    # Run a single prompt set (e.g. gort lakera_gandalf)")
-	fmt.Println("  gort [config.yaml] all               # Run ALL prompt sets in SQLite prompt_bank sequentially")
-	fmt.Println("  gort config.yaml                     # Prompt [y/N] confirmation & synthesize via Attacker LLM")
-	fmt.Println("  gort ls [index|dataset_name]         # List all prompt sets or inspect prompts as a table")
-	fmt.Println("  gort plugins [index|plugin_id]       # List all 155 plugins or inspect a plugin usage card")
-	fmt.Println("  gort pull | sync | --pull-datasets   # Pull and sync all remote datasets into SQLite & prompts/")
+	fmt.Println("  gort [config.yaml] <dataset_name> [-v|--verbose]  # Run a single prompt set with optional live verbose output")
+	fmt.Println("  gort [config.yaml] all [-v|--verbose]             # Run ALL prompt sets in SQLite prompt_bank sequentially")
+	fmt.Println("  gort config.yaml [-v|--verbose]                   # Prompt [y/N] confirmation & synthesize via Attacker LLM")
+	fmt.Println("  gort ls [index|dataset_name]                      # List all prompt sets or inspect prompts as a table")
+	fmt.Println("  gort plugins [index|plugin_id] [--ai]             # List all 155 plugins or inspect a plugin usage card")
+	fmt.Println("  gort results [index|eval_id] [-v|--verbose]       # List stored runs or inspect full prompt/output/turns")
+	fmt.Println("  gort pull | sync | --pull-datasets                # Pull and sync all remote datasets into SQLite & prompts/")
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ type Evaluator struct {
 	store       domain.ResultStore
 	rubricJudge *grader.RubricGrader
 	concurrency int
+	verbose     bool
 }
 
 // NewEvaluator creates a configured execution orchestrator.
@@ -35,6 +37,11 @@ func NewEvaluator(store domain.ResultStore, judge domain.Provider, defaultRubric
 		rubricJudge: rJudge,
 		concurrency: concurrency,
 	}
+}
+
+// SetVerbose enables or disables detailed live prompt/response/turn output.
+func (e *Evaluator) SetVerbose(v bool) {
+	e.verbose = v
 }
 
 // ExecuteRun runs a batch of test cases against target providers and persists telemetry.
@@ -112,6 +119,9 @@ func (e *Evaluator) executeSingleCase(ctx context.Context, run domain.EvalRun, t
 	e.updateRunStats(stats, res.Pass, resp.TokenUsage.Total)
 	e.persistResult(ctx, res, span)
 	printLiveResultLine(idx, total, tc, res)
+	if e.verbose {
+		printVerboseCaseDetail(tc, res)
+	}
 	return nil
 }
 
@@ -223,4 +233,32 @@ func printLiveResultLine(idx, total int, tc domain.TestCase, res domain.EvalResu
 	}
 	fmt.Printf("  [%3d/%-3d] %s %s (%4dms) - %s\n",
 		idx, total, badge, pluginText, res.LatencyMs, ui.Dim(res.JudgeReason))
+}
+
+func printVerboseCaseDetail(tc domain.TestCase, res domain.EvalResult) {
+	sep := ui.Dim("      " + strings.Repeat("·", 82))
+	fmt.Println(sep)
+	fmt.Printf("      %s %-28s | %s %-10s | %s %d tokens\n",
+		ui.BoldCyan("Strategy:"), res.StrategyID,
+		ui.BoldCyan("Severity:"), string(tc.Metadata.Severity),
+		ui.BoldCyan("Usage:"), res.TokenUsage.Total)
+	fmt.Printf("      %s %s\n", ui.BoldYellow("Prompt  :"), strings.TrimSpace(res.RenderedPrompt))
+	if len(res.ConversationHistory) > 0 {
+		printVerboseTurns(res.ConversationHistory)
+	} else {
+		fmt.Printf("      %s %s\n", ui.BoldGreen("Output  :"), strings.TrimSpace(res.TargetOutput))
+	}
+	fmt.Printf("      %s Score=%.1f | %s\n", ui.BoldCyan("Verdict :"), res.Score, res.JudgeReason)
+	fmt.Println(sep)
+}
+
+func printVerboseTurns(turns []domain.ConversationTurn) {
+	for _, t := range turns {
+		tag := fmt.Sprintf("Turn #%d", t.Turn)
+		if t.Backtrack {
+			tag += " [BACKTRACKED]"
+		}
+		fmt.Printf("        %s User      : %s\n", ui.BoldYellow(tag), strings.TrimSpace(t.Prompt))
+		fmt.Printf("        %s Assistant : %s\n", ui.BoldGreen(tag), strings.TrimSpace(t.Output))
+	}
 }

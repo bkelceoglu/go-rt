@@ -49,9 +49,10 @@ func Cyan(text string) string    { return Colorize("36", text) }
 func Gray(text string) string    { return Colorize("90", text) }
 
 // Bold color helpers.
-func BoldRed(text string) string   { return Colorize("1;31", text) }
-func BoldGreen(text string) string { return Colorize("1;32", text) }
-func BoldCyan(text string) string  { return Colorize("1;36", text) }
+func BoldRed(text string) string    { return Colorize("1;31", text) }
+func BoldGreen(text string) string  { return Colorize("1;32", text) }
+func BoldYellow(text string) string { return Colorize("1;33", text) }
+func BoldCyan(text string) string   { return Colorize("1;36", text) }
 
 // Badge returns a stylized severity or status badge.
 func Badge(label string) string {
