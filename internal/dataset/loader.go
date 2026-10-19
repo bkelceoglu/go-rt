@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/caveman/go-rt/internal/domain"
@@ -53,9 +54,17 @@ func resolveAllDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir s
 }
 
 func syncLocalCSVsToPromptBank(ctx context.Context, db *store.SQLiteStore, promptsDir string) {
+	existing, _ := db.ListDatasets(ctx)
+	present := make(map[string]int, len(existing))
+	for _, s := range existing {
+		present[s.DatasetName] = s.PromptCount
+	}
 	matches, _ := filepath.Glob(filepath.Join(promptsDir, "*.csv"))
 	for _, path := range matches {
 		name := normalizeDatasetName(path)
+		if present[name] > 0 {
+			continue
+		}
 		if recs, err := ReadCSV(path); err == nil && len(recs) > 0 {
 			_ = db.SaveDatasetPrompts(ctx, name, recs)
 		}
@@ -66,12 +75,22 @@ func resolveSingleDataset(ctx context.Context, db *store.SQLiteStore, promptsDir
 	if strings.HasPrefix(strings.TrimSpace(arg), "-") {
 		return NamedDataset{}, fmt.Errorf("invalid dataset name %q (looks like a CLI flag)", arg)
 	}
-	name := normalizeDatasetName(arg)
+	name := resolveIndexOrDatasetName(ctx, db, arg)
 	if recs, err := db.LoadDatasetPrompts(ctx, name); err == nil && len(recs) > 0 {
 		ensureCSVExport(promptsDir, arg, name, recs)
 		return NamedDataset{Name: name, Records: recs}, nil
 	}
 	return loadOrSeedMissingDataset(ctx, db, promptsDir, arg, name)
+}
+
+func resolveIndexOrDatasetName(ctx context.Context, db *store.SQLiteStore, arg string) string {
+	trimmed := strings.TrimSpace(arg)
+	if idx, err := strconv.Atoi(trimmed); err == nil {
+		if list, err := db.ListDatasets(ctx); err == nil && idx >= 1 && idx <= len(list) {
+			return list[idx-1].DatasetName
+		}
+	}
+	return normalizeDatasetName(arg)
 }
 
 func loadOrSeedMissingDataset(ctx context.Context, db *store.SQLiteStore, promptsDir, arg, name string) (NamedDataset, error) {
