@@ -215,10 +215,6 @@ export function serializeConfigToYAML(cfg) {
   return lines.join("\n") + "\n";
 }
 
-  lines.push("", "storage:", `  sqlitePath: ${yamlStr(cfg.storage?.sqlitePath || ".gort/gort.db")}`);
-  return lines.join("\n") + "\n";
-}
-
 export function escapeAttr(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
