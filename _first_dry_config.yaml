@@ -12,25 +12,25 @@ promptTemplate: "{{prompt}}"
 injectVar: "prompt"
 maxConcurrency: 1
 
-# 1. TARGET LLM (LocalAI :8090)
+# 1. TARGET LLM (llama.cpp Server on :8080 with Speculative Decoding)
 targets:
-  - id: "localai:chat:qwen3.8-9b-q4"
-    label: "Target Assistant (Qwen 3.8 9B Q4)"
-    baseUrl: "http://localhost:8090"
+  - id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+    label: "Target Assistant (Qwen 2.5 7B + 1.5B Draft via llama.cpp)"
+    baseUrl: "http://localhost:8080"
     temperature: 0.1
     maxTokens: 512
 
 # 2. ATTACKER LLM (Synthesizes Section 4 plugins & drives Section 5 Crescendo turns)
 attacker:
-  id: "localai:chat:qwen3-4b"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.7
   maxTokens: 512
 
-# 3. JUDGE LLM (Independent Qwen 3 4B model scoring target responses)
+# 3. JUDGE LLM (Evaluates target responses against safety rubric)
 judge:
-  id: "localai:chat:qwen3-4b"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.0
   maxTokens: 256
   notContains:

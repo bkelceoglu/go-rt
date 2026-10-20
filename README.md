@@ -4,7 +4,7 @@
 
 It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated prompts)**, **155 built-in red-teaming plugins**, **14 industry compliance collections**, **static & multi-turn agentic attack strategies (`Crescendo`, `GOAT`, `Hydra`)**, and **GORM + Pure-Go SQLite (`.gort/gort.db`)** persistence with zero external runtime dependencies.
 
-> **Step-by-Step Practical Guide:** See [**`docs/HOWTO.md`**](docs/HOWTO.md) for hands-on recipes, provider configurations (LocalAI, OpenAI, vLLM, Ollama, Custom REST Webhooks), and SQLite analytics queries.
+> **Step-by-Step Practical Guide:** See [**`docs/HOWTO.md`**](docs/HOWTO.md) for hands-on recipes, provider configurations (llama.cpp `:8080`, OpenAI, vLLM, Ollama, LocalAI, Custom REST Webhooks), and SQLite analytics queries.
 
 ---
 
@@ -24,8 +24,8 @@ It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated pr
    - **Adversarial Framing & Chaining:** `jailbreak-templates` (round-robin sandbox/audit personas) and `layer` (multi-step sequential chaining, e.g., `jailbreak-templates -> base64`).
    - **Agentic Multi-Turn Escalation:** `crescendo`, `goat` (Generative Offensive Agent Tester), and `hydra` with automatic refusal backtracking (`RollbackLastTurn()`) and clarifying-question `Unblocker`.
 4. **Universal Target & Judge Provider Support:**
-   - **LocalAI (`:8090`):** First-class `localai:chat:<model>` support (e.g., `qwen3.8-9b-q4`, `qwen3-4b` with `/no_think` fast structured output).
-   - **OpenAI / vLLM / Ollama:** `openai:chat:gpt-4o`, `vllm:chat:<model>`, `ollama:chat:<model>`.
+   - **llama.cpp Server (`:8080`):** First-class `llamacpp:chat:<model>` support (e.g., `Qwen2.5-7B-Instruct` + `qwen2.5-1.5b` draft or `Llama-3.2-3B-Instruct` + `Llama-3.2-1B` draft with Intel Arc GPU OpenVINO Speculative Decoding).
+   - **OpenAI / vLLM / Ollama / LocalAI:** `openai:chat:gpt-4o`, `vllm:chat:<model>`, `ollama:chat:<model>`, `localai:chat:<model>`.
    - **Custom Enterprise Webhooks / API Gateways:** `webhook:http://...` with custom `headers`, `bodyTemplate` (`{{prompt}}`), and dot-notated `responsePath` extraction.
 5. **Hybrid Two-Stage Grader & OpenTelemetry GenAI Tracing:**
    - Fast deterministic refusal (`IsBasicRefusal`) and forbidden-substring (`notContains`) checks, followed by LLM-as-a-Judge (`RubricGrader`).
@@ -51,7 +51,7 @@ flowchart TB
     subgraph Engine["3. CONCURRENT EVALUATOR & MULTI-TURN ENGINE"]
         SafeRender["SSTI-Safe Boundary Renderer\n(internal/template)"]
         Agentic["Crescendo / GOAT / Hydra Decorator\nConversationMemory + RollbackLastTurn + Unblocker"]
-        Target["Target Provider\nLocalAI (:8090) | OpenAI | vLLM | Ollama | Webhook"]
+        Target["Target Provider\nllama.cpp (:8080) | OpenAI | vLLM | Ollama | Webhook"]
         Grader["Hybrid Grader (internal/grader)\nDeterministic Refusal + Judge LLM Rubric"]
     end
 

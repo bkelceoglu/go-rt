@@ -73,6 +73,9 @@ func TestOpenAICompatibleErrorHandling(t *testing.T) {
 }
 
 func TestResolveModelNameAndBaseURL(t *testing.T) {
+	if resolveModelName("llamacpp:chat:Qwen2.5-7B-Instruct") != "Qwen2.5-7B-Instruct" {
+		t.Errorf("failed resolving llamacpp model name")
+	}
 	if resolveModelName("localai:chat:qwen3.8-9b-q4") != "qwen3.8-9b-q4" {
 		t.Errorf("failed resolving localai model name")
 	}
@@ -82,6 +85,9 @@ func TestResolveModelNameAndBaseURL(t *testing.T) {
 	if resolveModelName("openai:gpt-4o") != "gpt-4o" {
 		t.Errorf("failed resolving openai model name")
 	}
+	if resolveBaseURL("llamacpp:chat:Qwen2.5-7B-Instruct", "") != "http://localhost:8080/v1" {
+		t.Errorf("failed resolving default llamacpp base url")
+	}
 	if resolveBaseURL("localai:chat:qwen3.8-9b-q4", "") != "http://localhost:8090/v1" {
 		t.Errorf("failed resolving default localai base url")
 	}
@@ -90,6 +96,11 @@ func TestResolveModelNameAndBaseURL(t *testing.T) {
 	}
 	if resolveBaseURL("ollama:llama3", "") != "http://localhost:11434/v1" {
 		t.Errorf("failed resolving default ollama base url")
+	}
+
+	t.Setenv("LLAMACPP_BASE_URL", "http://127.0.0.1:8080/v1")
+	if resolveBaseURL("llamacpp:chat:Llama-3.2-3B-Instruct", "") != "http://127.0.0.1:8080/v1" {
+		t.Errorf("failed resolving env LLAMACPP_BASE_URL")
 	}
 
 	t.Setenv("LOCALAI_BASE_URL", "http://127.0.0.1:8090/v1")

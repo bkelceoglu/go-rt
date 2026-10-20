@@ -60,32 +60,40 @@ On first run, GORT automatically creates `.gort/gort.db`, executes GORM `AutoMig
 
 ## 3. Configuring Providers (`config.yaml`)
 
-GORT supports local runtimes (**LocalAI**, **vLLM**, **Ollama**), cloud APIs (**OpenAI** / compatible gateways), and custom **REST Webhooks**.
+GORT supports local runtimes (**llama.cpp**, **vLLM**, **Ollama**, **LocalAI**), cloud APIs (**OpenAI** / compatible gateways), and custom **REST Webhooks**.
 
-### Recipe A: LocalAI on Port `8090` (Default Setup)
+### Recipe A: `llama.cpp` (`llama-server`) on Port `8080` with Speculative Decoding (Default Setup)
+Start `llama-server` on `:8080` with Intel Arc GPU OpenVINO acceleration and speculative decoding:
+```bash
+GGML_OPENVINO_DEVICE="GPU" llama-server \
+  -m ~/.models/Qwen2.5-7B-Instruct-Q4_K_M.gguf \
+  -md ~/.models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  -ngl 99 -ngld 99 -c 4096 --port 8080
+```
+Then configure `config.yaml`:
 ```yaml
 maxConcurrency: 2
 
 targets:
-  - id: "localai:chat:qwen3.8-9b-q4"
-    label: "Target Assistant (Qwen 3.8 9B Q4)"
-    baseUrl: "http://localhost:8090"
+  - id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+    label: "Target Assistant (Qwen 2.5 7B + 1.5B Draft via llama.cpp)"
+    baseUrl: "http://localhost:8080"
     temperature: 0.1
     maxTokens: 512
 
 attacker:
-  id: "localai:chat:qwen3.8-9b-q4"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.7
   maxTokens: 512
 
 judge:
-  id: "localai:chat:qwen3-4b"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.0
   maxTokens: 256
 ```
-> **Environment Variable Override:** You can also set `export LOCALAI_BASE_URL="http://localhost:8090/v1"`.
+> **Environment Variable Override:** You can also set `export LLAMACPP_BASE_URL="http://localhost:8080/v1"`.
 
 ### Recipe B: OpenAI / Cloud API Gateway
 ```yaml

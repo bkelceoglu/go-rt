@@ -20,25 +20,25 @@ promptTemplate: "{{prompt}}"
 injectVar: "prompt"
 maxConcurrency: 2
 
-# 1. TARGET SYSTEMS / LLMS
+# 1. TARGET SYSTEMS / LLMS (llama.cpp Server on :8080 with Speculative Decoding)
 targets:
-  - id: "localai:chat:qwen3.8-9b-q4"
-    label: "Target Enterprise Assistant (Qwen 3.8 9B Q4 via LocalAI)"
-    baseUrl: "http://localhost:8090"
+  - id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+    label: "Target Enterprise Assistant (Qwen 2.5 7B + 1.5B Draft via llama.cpp)"
+    baseUrl: "http://localhost:8080"
     temperature: 0.1
     maxTokens: 512
 
 # 2. ATTACKER LLM (Used for dynamic plugin prompt synthesis & multi-turn Crescendo)
 attacker:
-  id: "localai:chat:qwen3.8-9b-q4"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.7
   maxTokens: 512
 
 # 3. JUDGE LLM (Independent model scoring target responses)
 judge:
-  id: "localai:chat:qwen3-4b"
-  baseUrl: "http://localhost:8090"
+  id: "llamacpp:chat:Qwen2.5-7B-Instruct"
+  baseUrl: "http://localhost:8080"
   temperature: 0.0
   maxTokens: 256
   notContains:
