@@ -154,7 +154,7 @@ export function serializeConfigToYAML(cfg) {
       lines.push("    steps:");
       st.steps.forEach((step) => lines.push(`      - ${yamlStr(step)}`));
     }
-    if st.maxTurns > 0) lines.push(`    maxTurns: ${Number(st.maxTurns)}`);
+    if (st.maxTurns > 0) lines.push(`    maxTurns: ${Number(st.maxTurns)}`);
     if (st.maxBacktracks > 0) lines.push(`    maxBacktracks: ${Number(st.maxBacktracks)}`);
   });
 
