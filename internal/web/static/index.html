@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GORT — Enterprise AI Red Teaming Command Center</title>
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- LEFT COLUMN: Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">GORT</div>
+        <div class="brand-meta">
+          <span class="brand-title">AI Red Team Studio</span>
+          <span class="brand-version">Go 1.27+ • SQLite WAL</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">CONFIGURATION &amp; SUPPLY</div>
+        <button class="nav-item active" data-route="wizard">
+          <span class="nav-icon">⚙</span>
+          <span class="nav-text">Config Builder Wizard</span>
+        </button>
+        <button class="nav-item" data-route="catalog">
+          <span class="nav-icon">❖</span>
+          <span class="nav-text">Plugins &amp; Prompt Bank</span>
+        </button>
+
+        <div class="nav-section-label">OPERATIONS &amp; TELEMETRY</div>
+        <button class="nav-item" data-route="dashboard">
+          <span class="nav-icon">◈</span>
+          <span class="nav-text">Executive Dashboard</span>
+        </button>
+        <button class="nav-item" data-route="runs">
+          <span class="nav-icon">≣</span>
+          <span class="nav-text">Assessment Runs</span>
+        </button>
+        <button class="nav-item" data-route="live">
+          <span class="nav-icon">▶</span>
+          <span class="nav-text">Launch &amp; Live Logs</span>
+        </button>
+        <button class="nav-item" data-route="reports">
+          <span class="nav-icon">⎙</span>
+          <span class="nav-text">Executive Reports</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer" id="sidebar-stats">
+        <div class="stat-pill">SQLite: Loading catalog...</div>
+      </div>
+    </aside>
+
+    <!-- CENTER COLUMN: Action Workspace -->
+    <main class="workspace">
+      <header class="workspace-header">
+        <div class="header-titles">
+          <h1 id="page-title">Interactive Config Builder Wizard</h1>
+          <p id="page-subtitle">Configure Target, Attacker &amp; Judge LLMs, Prompt Bank datasets, 155 plugins, and strategies</p>
+        </div>
+        <div class="header-actions">
+          <label class="inline-label" for="config-file-select">Load Config:</label>
+          <select id="config-file-select" class="input-select"></select>
+          <button id="btn-reload-config" class="btn btn-secondary">Load</button>
+          <button id="btn-toggle-yaml" class="btn btn-outline">Toggle YAML Panel</button>
+        </div>
+      </header>
+
+      <div id="toast-banner" class="toast-banner hidden"></div>
+
+      <section id="view-container" class="view-container"></section>
+    </main>
+
+    <!-- RIGHT COLUMN: Live YAML Preview & Save Drawer -->
+    <aside id="yaml-drawer" class="yaml-drawer">
+      <div class="yaml-drawer-header">
+        <div>
+          <h3>Live <code>config.yaml</code> Output</h3>
+          <span id="case-estimator" class="badge badge-info">Calculating cases...</span>
+        </div>
+      </div>
+
+      <div class="yaml-save-bar">
+        <input type="text" id="save-filename-input" class="input-text" value="config.yaml" placeholder="e.g. _custom_config.yaml" />
+        <button id="btn-save-yaml" class="btn btn-primary">Save to Disk</button>
+        <button id="btn-copy-yaml" class="btn btn-secondary">Copy</button>
+      </div>
+
+      <textarea id="yaml-preview-editor" class="yaml-editor" spellcheck="false"></textarea>
+    </aside>
+  </div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

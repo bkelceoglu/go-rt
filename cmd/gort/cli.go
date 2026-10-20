@@ -11,6 +11,7 @@ const (
 	cmdListPlugins  cliCommandKind = "list-plugins"
 	cmdListResults  cliCommandKind = "list-results"
 	cmdPullDatasets cliCommandKind = "pull-datasets"
+	cmdWebUI        cliCommandKind = "web-ui"
 	cmdRun          cliCommandKind = "run"
 )
 
@@ -53,6 +54,8 @@ func detectSubcommand(args []string) (parsedCLI, bool) {
 			aiGen = true
 		case "results", "result", "runs", "history", "--results":
 			kind = cmdListResults
+		case "view", "ui", "web", "wizard", "--view", "--ui":
+			kind = cmdWebUI
 		case "plugins", "plugin", "--list-plugins", "--plugins", "-p":
 			kind = cmdListPlugins
 		case "ls", "list", "datasets", "dataset", "--list-datasets", "--datasets", "-l":

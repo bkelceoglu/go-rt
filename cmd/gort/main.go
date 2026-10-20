@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/caveman/go-rt/internal/config"
@@ -20,6 +22,7 @@ import (
 	"github.com/caveman/go-rt/internal/telemetry"
 	"github.com/caveman/go-rt/internal/template"
 	"github.com/caveman/go-rt/internal/ui"
+	"github.com/caveman/go-rt/internal/web"
 )
 
 const (
@@ -100,11 +103,30 @@ func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader
 			return inspectEvalRunResults(db, parsed.TargetArg, parsed.Verbose)
 		}
 		return printEvalRuns(db)
+	case cmdWebUI:
+		return runWebDashboard(db, parsed.TargetArg)
 	case cmdPullDatasets:
 		return runPullDatasets(db)
 	default:
 		return executeAssessment(parsed.ConfigPath, parsed.DatasetArgs, parsed.Verbose, db, in)
 	}
+}
+
+func runWebDashboard(db *store.SQLiteStore, portArg string) error {
+	addr := ":8585"
+	if portArg != "" {
+		if !strings.HasPrefix(portArg, ":") {
+			addr = ":" + portArg
+		} else {
+			addr = portArg
+		}
+	}
+	fmt.Printf("\n%s Web Command Center & Config Wizard listening at %s\n",
+		ui.PrefixGort(), ui.BoldGreen("http://localhost"+addr))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv := web.NewServer(db, ".")
+	return srv.Start(ctx, addr)
 }
 
 func printPluginCatalog(db *store.SQLiteStore) error {
