@@ -92,7 +92,7 @@ function mountStep1General(body) {
         </div>
         <div class="form-group">
           <label>SQLite Database Path</label>
-          <input id="inp-sqlite" class="input-text" value="${escapeAttr(cfg.storage?.sqlitePath || ".gort/gort.db")}" />
+          <input id="inp-sqlite" class="input-text" value="${escapeAttr(cfg.storage?.sqlitePath || ".gort/gort.db")}" readOnly />
         </div>
       </div>
     </div>
