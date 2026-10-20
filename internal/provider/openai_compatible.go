@@ -65,10 +65,11 @@ func (p *OpenAICompatibleProvider) Call(ctx context.Context, req domain.PromptRe
 }
 
 func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) ([]byte, error) {
+	content := applyThinkDirective(req.Prompt, p.spec.Think)
 	payload := map[string]any{
 		"model": p.modelName,
 		"messages": []map[string]string{
-			{"role": "user", "content": req.Prompt},
+			{"role": "user", "content": content},
 		},
 	}
 	if p.spec.Temp > 0 {
@@ -78,6 +79,16 @@ func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) 
 		payload["max_tokens"] = p.spec.MaxToks
 	}
 	return json.Marshal(payload)
+}
+
+func applyThinkDirective(prompt string, think *bool) string {
+	if think == nil {
+		return prompt
+	}
+	if *think {
+		return "/think\n" + prompt
+	}
+	return "/no_think\n" + prompt
 }
 
 func (p *OpenAICompatibleProvider) buildHTTPRequest(ctx context.Context, body []byte) (*http.Request, error) {

@@ -117,4 +117,15 @@ func TestResolveModelNameAndBaseURL(t *testing.T) {
 	if resolveBaseURL("openai:chat:gpt-4o", "") != "https://custom-gateway.internal/v1" {
 		t.Errorf("failed resolving env OPENAI_BASE_URL")
 	}
+
+	f, tr := false, true
+	if applyThinkDirective("hello", nil) != "hello" {
+		t.Errorf("expected nil think to leave prompt untouched")
+	}
+	if applyThinkDirective("hello", &f) != "/no_think\nhello" {
+		t.Errorf("expected false think to prepend /no_think")
+	}
+	if applyThinkDirective("hello", &tr) != "/think\nhello" {
+		t.Errorf("expected true think to prepend /think")
+	}
 }

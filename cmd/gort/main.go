@@ -376,6 +376,7 @@ func buildJudgeProvider(spec domain.JudgeSpec) domain.Provider {
 		APIKey:  spec.APIKey,
 		Temp:    spec.Temp,
 		MaxToks: spec.MaxToks,
+		Think:   spec.Think,
 	}
 	return buildProviderFromSpec(pSpec)
 }

@@ -26,6 +26,7 @@ type ProviderSpec struct {
 	APIKey   string            `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
 	Temp     float64           `json:"temperature,omitempty" yaml:"temperature,omitempty"`
 	MaxToks  int               `json:"maxTokens,omitempty" yaml:"maxTokens,omitempty"`
+	Think    *bool             `json:"think,omitempty" yaml:"think,omitempty"`
 	Headers  map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
 	BodyTmpl string            `json:"bodyTemplate,omitempty" yaml:"bodyTemplate,omitempty"`
 	RespPath string            `json:"responsePath,omitempty" yaml:"responsePath,omitempty"`
@@ -38,6 +39,7 @@ type JudgeSpec struct {
 	APIKey      string   `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
 	Temp        float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
 	MaxToks     int      `json:"maxTokens,omitempty" yaml:"maxTokens,omitempty"`
+	Think       *bool    `json:"think,omitempty" yaml:"think,omitempty"`
 	Rubric      string   `json:"rubric" yaml:"rubric"`
 	NotContains []string `json:"notContains,omitempty" yaml:"notContains,omitempty"`
 }

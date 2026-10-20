@@ -80,18 +80,21 @@ targets:
     baseUrl: "http://localhost:8080"
     temperature: 0.1
     maxTokens: 512
+    think: false # Optional: false -> prepends '/no_think', true -> prepends '/think', omitted -> untouched
 
 attacker:
   id: "llamacpp:chat:Qwen2.5-7B-Instruct"
   baseUrl: "http://localhost:8080"
   temperature: 0.7
   maxTokens: 512
+  think: false
 
 judge:
   id: "llamacpp:chat:Qwen2.5-7B-Instruct"
   baseUrl: "http://localhost:8080"
   temperature: 0.0
   maxTokens: 256
+  think: false
 ```
 > **Environment Variable Override:** You can also set `export LLAMACPP_BASE_URL="http://localhost:8080/v1"`.
 
