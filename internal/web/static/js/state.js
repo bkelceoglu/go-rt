@@ -2,12 +2,51 @@
 
 export const appState = {
   catalog: { plugins: [], collections: {}, datasets: [], strategies: [], localModels: [] },
-  configFiles: ["config.yaml"],
+  configFiles: [],
   activeFile: "config.yaml",
   wizardStep: 1,
-  config: createDefaultConfig(),
+  config: createBlankConfig(),
   listeners: [],
 };
+
+export function createBlankConfig() {
+  return {
+    version: "1.0",
+    description: "",
+    purpose: "",
+    promptsDir: "prompts",
+    promptTemplate: "{{prompt}}",
+    injectVar: "prompt",
+    maxConcurrency: 2,
+    datasets: [],
+    targets: [],
+    attacker: {
+      id: "",
+      baseUrl: "http://localhost:8080",
+      temperature: 0.7,
+      maxTokens: 512,
+      think: false,
+    },
+    judge: {
+      id: "",
+      baseUrl: "http://localhost:8080",
+      temperature: 0.0,
+      maxTokens: 256,
+      think: false,
+      notContains: [],
+      rubric: "",
+    },
+    redteam: {
+      numTestsPerPlugin: 2,
+      languages: ["en"],
+      plugins: [],
+    },
+    strategies: [],
+    storage: {
+      sqlitePath: ".gort/gort.db",
+    },
+  };
+}
 
 export function createDefaultConfig() {
   return {
@@ -73,14 +112,16 @@ export function notify() {
 }
 
 export function estimateTotalTestCases(cfg) {
-  const stratCount = Math.max(1, (cfg.strategies || []).length);
+  const stratCount = (cfg.strategies || []).length;
   const pluginList = (cfg.redteam && cfg.redteam.plugins) || [];
   const defaultNum = (cfg.redteam && cfg.redteam.numTestsPerPlugin) || 1;
   let seeds = 0;
   for (const p of pluginList) {
     seeds += p.numTests > 0 ? p.numTests : defaultNum;
   }
-  return { seeds, strategies: stratCount, total: seeds * stratCount };
+  const mult = Math.max(1, stratCount);
+  const total = seeds === 0 ? 0 : (stratCount === 0 ? seeds : seeds * mult);
+  return { seeds, strategies: stratCount, total };
 }
 
 function yamlStr(val) {
@@ -103,8 +144,8 @@ function serializeProviderBlock(p, indent = "  ") {
 export function serializeConfigToYAML(cfg) {
   const lines = [
     `version: ${yamlStr(cfg.version || "1.0")}`,
-    `description: ${yamlStr(cfg.description)}`,
-    `purpose: ${yamlStr(cfg.purpose)}`,
+    `description: ${yamlStr(cfg.description || "")}`,
+    `purpose: ${yamlStr(cfg.purpose || "")}`,
     `promptsDir: ${yamlStr(cfg.promptsDir || "prompts")}`,
     `promptTemplate: ${yamlStr(cfg.promptTemplate || "{{prompt}}")}`,
     `injectVar: ${yamlStr(cfg.injectVar || "prompt")}`,
@@ -116,12 +157,16 @@ export function serializeConfigToYAML(cfg) {
     cfg.datasets.forEach((d) => lines.push(`  - ${yamlStr(d)}`));
     lines.push("");
   }
-  lines.push("targets:");
-  (cfg.targets || []).forEach((t) => {
-    lines.push(`  - id: ${yamlStr(t.id)}`);
-    const block = serializeProviderBlock(t, "    ");
-    if (block) lines.push(block);
-  });
+  if (cfg.targets && cfg.targets.length > 0) {
+    lines.push("targets:");
+    cfg.targets.forEach((t) => {
+      lines.push(`  - id: ${yamlStr(t.id || "")}`);
+      const block = serializeProviderBlock(t, "    ");
+      if (block) lines.push(block);
+    });
+  } else {
+    lines.push("targets: []");
+  }
   lines.push("", "attacker:", `  id: ${yamlStr(cfg.attacker?.id || "")}`);
   const atkBlock = serializeProviderBlock(cfg.attacker || {}, "  ");
   if (atkBlock) lines.push(atkBlock);
@@ -140,23 +185,35 @@ export function serializeConfigToYAML(cfg) {
     lines.push("  languages:");
     cfg.redteam.languages.forEach((l) => lines.push(`    - ${yamlStr(l)}`));
   }
-  lines.push("  plugins:");
-  (cfg.redteam?.plugins || []).forEach((pl) => {
-    lines.push(`    - id: ${yamlStr(pl.id)}`);
-    if (pl.numTests > 0) lines.push(`      numTests: ${Number(pl.numTests)}`);
-    if (pl.severity) lines.push(`      severity: ${yamlStr(pl.severity)}`);
-  });
+  if (cfg.redteam?.plugins && cfg.redteam.plugins.length > 0) {
+    lines.push("  plugins:");
+    cfg.redteam.plugins.forEach((pl) => {
+      lines.push(`    - id: ${yamlStr(pl.id)}`);
+      if (pl.numTests > 0) lines.push(`      numTests: ${Number(pl.numTests)}`);
+      if (pl.severity) lines.push(`      severity: ${yamlStr(pl.severity)}`);
+    });
+  } else {
+    lines.push("  plugins: []");
+  }
 
-  lines.push("", "strategies:");
-  (cfg.strategies || []).forEach((st) => {
-    lines.push(`  - id: ${yamlStr(st.id)}`);
-    if (st.steps?.length) {
-      lines.push("    steps:");
-      st.steps.forEach((step) => lines.push(`      - ${yamlStr(step)}`));
-    }
-    if (st.maxTurns > 0) lines.push(`    maxTurns: ${Number(st.maxTurns)}`);
-    if (st.maxBacktracks > 0) lines.push(`    maxBacktracks: ${Number(st.maxBacktracks)}`);
-  });
+  if (cfg.strategies && cfg.strategies.length > 0) {
+    lines.push("", "strategies:");
+    cfg.strategies.forEach((st) => {
+      lines.push(`  - id: ${yamlStr(st.id)}`);
+      if (st.steps?.length) {
+        lines.push("    steps:");
+        st.steps.forEach((step) => lines.push(`      - ${yamlStr(step)}`));
+      }
+      if (st.maxTurns > 0) lines.push(`    maxTurns: ${Number(st.maxTurns)}`);
+      if (st.maxBacktracks > 0) lines.push(`    maxBacktracks: ${Number(st.maxBacktracks)}`);
+    });
+  } else {
+    lines.push("", "strategies: []");
+  }
+
+  lines.push("", "storage:", `  sqlitePath: ${yamlStr(cfg.storage?.sqlitePath || ".gort/gort.db")}`);
+  return lines.join("\n") + "\n";
+}
 
   lines.push("", "storage:", `  sqlitePath: ${yamlStr(cfg.storage?.sqlitePath || ".gort/gort.db")}`);
   return lines.join("\n") + "\n";

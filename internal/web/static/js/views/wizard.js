@@ -70,7 +70,7 @@ function mountStep1General(body) {
       <div class="form-grid">
         <div class="form-group">
           <label>Description</label>
-          <input id="inp-desc" class="input-text" value="${escapeAttr(cfg.description)}" />
+          <input id="inp-desc" class="input-text" value="${escapeAttr(cfg.description)}" placeholder="e.g. Enterprise Assistant Red Teaming &amp; Security Audit" />
         </div>
         <div class="form-group">
           <label>Max Concurrency (Parallel Workers)</label>
@@ -79,7 +79,7 @@ function mountStep1General(body) {
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label>Target System Purpose (Used by Attacker &amp; Judge LLMs for Context)</label>
-        <input id="inp-purpose" class="input-text" value="${escapeAttr(cfg.purpose)}" />
+        <input id="inp-purpose" class="input-text" value="${escapeAttr(cfg.purpose)}" placeholder="e.g. Internal enterprise assistant for customer policy and documentation QA" />
       </div>
       <div class="form-grid">
         <div class="form-group">
@@ -118,6 +118,10 @@ function mountStep2Providers(body, container, showToast) {
   ];
   const modelOptions = models.map((m) => `<option value="${escapeAttr(m)}">${escapeAttr(m)}</option>`).join("");
 
+  cfg.targets = cfg.targets || [];
+  cfg.attacker = cfg.attacker || { id: "", baseUrl: "http://localhost:8080", think: false };
+  cfg.judge = cfg.judge || { id: "", baseUrl: "http://localhost:8080", think: false, notContains: [], rubric: "" };
+
   body.innerHTML = `
     <div class="card">
       <div class="card-header">
@@ -131,17 +135,24 @@ function mountStep2Providers(body, container, showToast) {
   `;
 
   const targetsList = body.querySelector("#targets-list");
-  (cfg.targets || []).forEach((t, idx) => {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = renderRoleCardHTML(`target-${idx}`, `Target #${idx + 1}`, t, modelOptions, false, cfg.targets.length > 1 ? idx : -1);
-    targetsList.appendChild(wrapper);
-    bindProviderCardEvents(wrapper, t, container, showToast);
-  });
+  if (cfg.targets.length === 0) {
+    const emptyNotice = document.createElement("div");
+    emptyNotice.style.cssText = "color:var(--text-secondary);font-size:13px;padding:16px;text-align:center;border:1px dashed var(--border-color);border-radius:6px;margin-bottom:12px;";
+    emptyNotice.innerHTML = `No Target LLMs added yet. Click <strong>+ Add Target LLM</strong> above to configure your system under test.`;
+    targetsList.appendChild(emptyNotice);
+  } else {
+    cfg.targets.forEach((t, idx) => {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = renderRoleCardHTML(`target-${idx}`, `Target #${idx + 1}`, t, modelOptions, false, idx);
+      targetsList.appendChild(wrapper);
+      bindProviderCardEvents(wrapper, t, container, showToast);
+    });
+  }
 
   body.querySelector("#btn-add-target").addEventListener("click", () => {
     cfg.targets.push({
-      id: "llamacpp:chat:Llama-3.2-3B-Instruct",
-      label: "Secondary Target (Llama 3.2 3B)",
+      id: "llamacpp:chat:Qwen2.5-7B-Instruct",
+      label: `Target LLM #${cfg.targets.length + 1}`,
       baseUrl: "http://localhost:8080",
       temperature: 0.1,
       maxTokens: 512,

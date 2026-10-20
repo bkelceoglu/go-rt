@@ -14,13 +14,16 @@ import (
 
 func (s *Server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
 	files := listWorkspaceYAMLFiles(s.workDir)
+	if files == nil {
+		files = []string{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"files": files})
 }
 
 func listWorkspaceYAMLFiles(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return []string{"config.yaml"}
+		return []string{}
 	}
 	var out []string
 	for _, e := range entries {
@@ -33,6 +36,9 @@ func listWorkspaceYAMLFiles(dir string) []string {
 		}
 	}
 	slices.Sort(out)
+	if out == nil {
+		out = []string{}
+	}
 	return out
 }
 

@@ -1,6 +1,14 @@
 // Main Modular Entry Point & Left Sidebar Router for GORT Command Center
 import { fetchCatalog, fetchConfigList, loadConfigFile, saveConfigFile } from "./api.js";
-import { appState, subscribe, notify, serializeConfigToYAML, estimateTotalTestCases } from "./state.js";
+import {
+  appState,
+  subscribe,
+  notify,
+  serializeConfigToYAML,
+  estimateTotalTestCases,
+  createBlankConfig,
+  createDefaultConfig,
+} from "./state.js";
 import { renderWizardView } from "./views/wizard.js";
 import { renderCatalogView } from "./views/catalog.js";
 
@@ -70,11 +78,20 @@ function updateLiveYAMLPanel() {
 
 async function refreshConfigDropdown() {
   const data = await fetchConfigList();
-  appState.configFiles = data.files || ["config.yaml"];
+  appState.configFiles = data.files || [];
   const sel = document.getElementById("config-file-select");
-  sel.innerHTML = appState.configFiles
-    .map((f) => `<option value="${f}" ${f === appState.activeFile ? "selected" : ""}>${f}</option>`)
-    .join("");
+  const loadBtn = document.getElementById("btn-reload-config");
+  if (appState.configFiles.length === 0) {
+    sel.innerHTML = `<option value="">(No YAML files on disk)</option>`;
+    sel.disabled = true;
+    if (loadBtn) loadBtn.disabled = true;
+  } else {
+    sel.disabled = false;
+    if (loadBtn) loadBtn.disabled = false;
+    sel.innerHTML = appState.configFiles
+      .map((f) => `<option value="${f}" ${f === appState.activeFile ? "selected" : ""}>${f}</option>`)
+      .join("");
+  }
 }
 
 async function initApp() {
@@ -95,22 +112,47 @@ async function initApp() {
 
   document.getElementById("btn-reload-config").addEventListener("click", async () => {
     const file = document.getElementById("config-file-select").value;
-    const loaded = await loadConfigFile(file);
-    appState.activeFile = loaded.filename;
-    appState.config = loaded.config;
-    document.getElementById("save-filename-input").value = loaded.filename;
+    if (!file) return;
+    try {
+      const loaded = await loadConfigFile(file);
+      appState.activeFile = loaded.filename;
+      appState.config = loaded.config;
+      document.getElementById("save-filename-input").value = loaded.filename;
+      notify();
+      renderActiveRoute();
+      showToast(`Loaded configuration from ${loaded.filename}`);
+    } catch (err) {
+      showToast(`Error loading ${file}: ${err.message}`);
+    }
+  });
+
+  document.getElementById("btn-new-blank-config").addEventListener("click", () => {
+    appState.config = createBlankConfig();
+    appState.activeFile = "config.yaml";
+    document.getElementById("save-filename-input").value = "config.yaml";
     notify();
     renderActiveRoute();
-    showToast(`Loaded configuration from ${loaded.filename}`);
+    showToast("Started fresh blank configuration! (All fields cleared)");
+  });
+
+  document.getElementById("btn-starter-template").addEventListener("click", () => {
+    appState.config = createDefaultConfig();
+    notify();
+    renderActiveRoute();
+    showToast("Loaded recommended starter template (Qwen 2.5 7B, 2 plugins, 3 strategies)!");
   });
 
   document.getElementById("btn-save-yaml").addEventListener("click", async () => {
     const filename = document.getElementById("save-filename-input").value.trim() || "config.yaml";
     const rawYaml = document.getElementById("yaml-preview-editor").value;
-    const res = await saveConfigFile(filename, rawYaml);
-    appState.activeFile = res.saved;
-    await refreshConfigDropdown();
-    showToast(`Saved ${res.saved} (${res.bytes} bytes) to project workspace!`);
+    try {
+      const res = await saveConfigFile(filename, rawYaml);
+      appState.activeFile = res.saved;
+      await refreshConfigDropdown();
+      showToast(`Saved ${res.saved} (${res.bytes} bytes) to project workspace!`);
+    } catch (err) {
+      showToast(`Save failed: ${err.message}`);
+    }
   });
 
   document.getElementById("btn-copy-yaml").addEventListener("click", async () => {
@@ -126,6 +168,25 @@ async function initApp() {
   `;
 
   await refreshConfigDropdown();
+
+  // If config.yaml exists on disk, auto-load it; otherwise start clean blank
+  if (appState.configFiles.includes("config.yaml")) {
+    try {
+      const loaded = await loadConfigFile("config.yaml");
+      appState.activeFile = loaded.filename;
+      appState.config = loaded.config;
+      document.getElementById("save-filename-input").value = loaded.filename;
+      showToast(`Auto-loaded active ${loaded.filename} from disk`);
+    } catch (e) {
+      console.warn("Auto-load config.yaml failed:", e);
+      appState.config = createBlankConfig();
+    }
+  } else {
+    appState.config = createBlankConfig();
+    appState.activeFile = "config.yaml";
+    document.getElementById("save-filename-input").value = "config.yaml";
+  }
+
   notify();
   renderActiveRoute();
 }
