@@ -120,7 +120,7 @@ async function initApp() {
   });
 
   appState.catalog = await fetchCatalog();
-  const totalPrompts = (appState.catalog.datasets || []).reduce((acc, d) => acc + d.PromptCount, 0);
+  const totalPrompts = (appState.catalog.datasets || []).reduce((acc, d) => acc + (d.promptCount ?? d.PromptCount ?? 0), 0);
   document.getElementById("sidebar-stats").innerHTML = `
     <div class="stat-pill">SQLite Ready: <strong>${(appState.catalog.plugins || []).length}</strong> plugins • <strong>${Object.keys(appState.catalog.collections || {}).length}</strong> cols • <strong>${(appState.catalog.datasets || []).length}</strong> sets (${totalPrompts} prompts)</div>
   `;

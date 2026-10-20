@@ -289,14 +289,17 @@ function mountStep3Datasets(body, container, showToast) {
       </div>
       <div class="SelectGrid">
         ${datasets.map((d) => {
-          const checked = cfg.datasets.includes(d.DatasetName);
+          const dsName = d.datasetName || d.DatasetName || "";
+          const count = d.promptCount ?? d.PromptCount ?? 0;
+          const src = d.source || d.Source || "";
+          const checked = cfg.datasets.includes(dsName);
           return `
             <div class="check-card ${checked ? "selected" : ""}">
-              <input type="checkbox" class="chk-dataset" data-name="${escapeAttr(d.DatasetName)}" ${checked ? "checked" : ""} />
+              <input type="checkbox" class="chk-dataset" data-name="${escapeAttr(dsName)}" ${checked ? "checked" : ""} />
               <div class="check-card-body">
-                <div class="check-card-title">${escapeAttr(d.DatasetName)}</div>
-                <div class="check-card-desc">${d.PromptCount} prompts • ${escapeAttr(d.Source)}</div>
-                <button class="btn btn-outline btn-inspect-ds" data-name="${escapeAttr(d.DatasetName)}" style="margin-top:6px;padding:3px 8px;font-size:11px;">Inspect &amp; Pick Prompts</button>
+                <div class="check-card-title">${escapeAttr(dsName)}</div>
+                <div class="check-card-desc">${count} prompts • ${escapeAttr(src)}</div>
+                <button class="btn btn-outline btn-inspect-ds" data-name="${escapeAttr(dsName)}" style="margin-top:6px;padding:3px 8px;font-size:11px;">Inspect &amp; Pick Prompts</button>
               </div>
             </div>
           `;
@@ -348,9 +351,9 @@ function renderPromptPickerModal(panel, container, showToast) {
             ${inspectedPrompts.slice(0, 150).map((r, idx) => `
               <tr>
                 <td><input type="checkbox" class="chk-prompt-row" data-idx="${idx}" ${selectedPromptIndices.has(idx) ? "checked" : ""} /></td>
-                <td><code>${escapeAttr(r.Category)}</code></td>
-                <td>${escapeAttr(r.AttackType)}</td>
-                <td>${escapeAttr(r.Prompt)}</td>
+                <td><code>${escapeAttr(r.category || r.Category || "")}</code></td>
+                <td>${escapeAttr(r.attack_type || r.attackType || r.AttackType || "")}</td>
+                <td>${escapeAttr(r.prompt || r.Prompt || "")}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -398,11 +401,14 @@ function mountStep4Plugins(body, container, showToast) {
   const selectedMap = new Map((cfg.redteam.plugins || []).map((p) => [p.id, p]));
   const collections = Object.keys(appState.catalog.collections || {}).sort();
   const allPlugins = appState.catalog.plugins || [];
-  const categories = ["all", ...new Set(allPlugins.map((p) => p.Category))];
+  const categories = ["all", ...new Set(allPlugins.map((p) => p.category || p.Category).filter(Boolean))];
 
   const filteredPlugins = allPlugins.filter((p) => {
-    const catMatch = pluginCategoryFilter === "all" || p.Category === pluginCategoryFilter;
-    const qMatch = !pluginSearchQuery || p.ID.toLowerCase().includes(pluginSearchQuery) || p.Description.toLowerCase().includes(pluginSearchQuery);
+    const pCat = p.category || p.Category || "";
+    const pId = p.id || p.ID || "";
+    const pDesc = p.description || p.Description || "";
+    const catMatch = pluginCategoryFilter === "all" || pCat === pluginCategoryFilter;
+    const qMatch = !pluginSearchQuery || pId.toLowerCase().includes(pluginSearchQuery) || pDesc.toLowerCase().includes(pluginSearchQuery);
     return catMatch && qMatch;
   });
 
@@ -451,19 +457,23 @@ function mountStep4Plugins(body, container, showToast) {
           <thead><tr><th>Use</th><th>Plugin ID</th><th>Category</th><th>Description</th><th>numTests</th><th>Severity</th></tr></thead>
           <tbody>
             ${filteredPlugins.map((p) => {
-              const spec = selectedMap.get(p.ID);
-              const sev = spec?.severity || p.Severity;
+              const pId = p.id || p.ID || "";
+              const pCat = p.category || p.Category || "";
+              const pDesc = p.description || p.Description || "";
+              const pSev = p.severity || p.Severity || "low";
+              const spec = selectedMap.get(pId);
+              const sev = spec?.severity || pSev;
               return `
                 <tr>
-                  <td><input type="checkbox" class="chk-plugin-id" data-id="${escapeAttr(p.ID)}" ${spec ? "checked" : ""} /></td>
-                  <td><code>${escapeAttr(p.ID)}</code></td>
-                  <td><span class="badge badge-info">${escapeAttr(p.Category)}</span></td>
-                  <td>${escapeAttr(p.Description)}</td>
+                  <td><input type="checkbox" class="chk-plugin-id" data-id="${escapeAttr(pId)}" ${spec ? "checked" : ""} /></td>
+                  <td><code>${escapeAttr(pId)}</code></td>
+                  <td><span class="badge badge-info">${escapeAttr(pCat)}</span></td>
+                  <td>${escapeAttr(pDesc)}</td>
                   <td style="width:90px;">
-                    <input type="number" min="1" max="50" class="input-text inp-pl-num" data-id="${escapeAttr(p.ID)}" value="${spec?.numTests || cfg.redteam.numTestsPerPlugin || 1}" ${spec ? "" : "disabled"} />
+                    <input type="number" min="1" max="50" class="input-text inp-pl-num" data-id="${escapeAttr(pId)}" value="${spec?.numTests || cfg.redteam.numTestsPerPlugin || 1}" ${spec ? "" : "disabled"} />
                   </td>
                   <td style="width:120px;">
-                    <select class="input-select sel-pl-sev" data-id="${escapeAttr(p.ID)}" ${spec ? "" : "disabled"}>
+                    <select class="input-select sel-pl-sev" data-id="${escapeAttr(pId)}" ${spec ? "" : "disabled"}>
                       ${["low", "medium", "high", "critical"].map((s) => `<option value="${s}" ${s === sev ? "selected" : ""}>${s}</option>`).join("")}
                     </select>
                   </td>
