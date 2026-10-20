@@ -118,6 +118,36 @@ type ResultFilter struct {
 	Limit      int
 }
 
+// StrategyBypassStat holds aggregate bypass counts for an attack strategy.
+type StrategyBypassStat struct {
+	Total      int64   `json:"total"`
+	Passed     int64   `json:"passed"`
+	Failed     int64   `json:"failed"`
+	BypassRate float64 `json:"bypassRate"`
+}
+
+// PluginFailureStat holds failure counts grouped by plugin and category.
+type PluginFailureStat struct {
+	Category string `json:"category"`
+	PluginID string `json:"pluginId"`
+	Failures int64  `json:"failures"`
+}
+
+// DashboardStats summarizes executive security posture across evaluation runs.
+type DashboardStats struct {
+	TotalRuns         int64                         `json:"totalRuns"`
+	TotalTests        int64                         `json:"totalTests"`
+	PassedTests       int64                         `json:"passedTests"`
+	FailedTests       int64                         `json:"failedTests"`
+	PassRate          float64                       `json:"passRate"`
+	TotalTokens       int64                         `json:"totalTokens"`
+	AvgDurationMs     int64                         `json:"avgDurationMs"`
+	StrategyStats     map[string]StrategyBypassStat `json:"strategyStats"`
+	SeverityStats     map[string]int64              `json:"severityStats"`
+	TopFailingPlugins []PluginFailureStat           `json:"topFailingPlugins"`
+	RecentRuns        []EvalRun                     `json:"recentRuns"`
+}
+
 // ResultStore defines the persistence contract implemented by SQLite, PostgreSQL, and MultiStore backends.
 type ResultStore interface {
 	SaveEvalRun(ctx context.Context, run EvalRun) error

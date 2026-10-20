@@ -11,6 +11,8 @@ import {
 } from "./state.js";
 import { renderWizardView } from "./views/wizard.js";
 import { renderCatalogView } from "./views/catalog.js";
+import { renderDashboardView } from "./views/dashboard.js";
+import { renderRunsView } from "./views/runs.js";
 
 let currentRoute = "wizard";
 
@@ -48,6 +50,14 @@ function showToast(msg) {
   setTimeout(() => banner.classList.add("hidden"), 4000);
 }
 
+function navigateToRoute(route) {
+  currentRoute = route;
+  document.querySelectorAll(".nav-item").forEach((b) => {
+    b.classList.toggle("active", b.dataset.route === route);
+  });
+  renderActiveRoute();
+}
+
 function renderActiveRoute() {
   const meta = ROUTE_META[currentRoute] || ROUTE_META.wizard;
   document.getElementById("page-title").textContent = meta.title;
@@ -58,6 +68,10 @@ function renderActiveRoute() {
     renderWizardView(container, showToast);
   } else if (currentRoute === "catalog") {
     renderCatalogView(container, showToast);
+  } else if (currentRoute === "dashboard") {
+    renderDashboardView(container, showToast, navigateToRoute);
+  } else if (currentRoute === "runs") {
+    renderRunsView(container, showToast);
   } else {
     container.innerHTML = `
       <div class="card">

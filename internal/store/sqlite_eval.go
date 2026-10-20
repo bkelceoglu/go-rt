@@ -62,6 +62,12 @@ func applyResultFilter(tx *gorm.DB, f domain.ResultFilter) *gorm.DB {
 	if f.PluginID != "" {
 		tx = tx.Where("plugin_id = ?", f.PluginID)
 	}
+	if f.Category != "" {
+		tx = tx.Where("category = ?", f.Category)
+	}
+	if f.StrategyID != "" {
+		tx = tx.Where("strategy_id = ?", f.StrategyID)
+	}
 	if f.FailedOnly {
 		tx = tx.Where("pass = ?", false)
 	}
@@ -69,6 +75,154 @@ func applyResultFilter(tx *gorm.DB, f domain.ResultFilter) *gorm.DB {
 		tx = tx.Limit(f.Limit)
 	}
 	return tx
+}
+
+// GetEvalRun retrieves a single assessment run by evalID via GORM.
+func (s *SQLiteStore) GetEvalRun(ctx context.Context, evalID string) (*domain.EvalRun, error) {
+	var model EvalRunModel
+	if err := s.db.WithContext(ctx).Where("eval_id = ?", evalID).First(&model).Error; err != nil {
+		return nil, fmt.Errorf("get eval run %s: %w", evalID, err)
+	}
+	runs := mapModelsToEvalRuns([]EvalRunModel{model})
+	return &runs[0], nil
+}
+
+// GetEvalResult retrieves a single evaluation test result by resultID via GORM.
+func (s *SQLiteStore) GetEvalResult(ctx context.Context, resultID string) (*domain.EvalResult, error) {
+	var model EvalResultModel
+	if err := s.db.WithContext(ctx).Where("result_id = ?", resultID).First(&model).Error; err != nil {
+		return nil, fmt.Errorf("get eval result %s: %w", resultID, err)
+	}
+	results := mapModelsToEvalResults([]EvalResultModel{model})
+	return &results[0], nil
+}
+
+// GetSpansByTrace retrieves all OTel span records for a trace ID via GORM.
+func (s *SQLiteStore) GetSpansByTrace(ctx context.Context, traceID string) ([]domain.OTelSpanRecord, error) {
+	var models []OTelSpanModel
+	if err := s.db.WithContext(ctx).Where("trace_id = ?", traceID).Order("start_time_unix_nano ASC").Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("get spans by trace %s: %w", traceID, err)
+	}
+	out := make([]domain.OTelSpanRecord, 0, len(models))
+	for _, m := range models {
+		out = append(out, domain.OTelSpanRecord{
+			SpanID:            m.SpanID,
+			TraceID:           m.TraceID,
+			ParentSpanID:      m.ParentSpanID,
+			EvalID:            m.EvalID,
+			ResultID:          m.ResultID,
+			Name:              m.Name,
+			Kind:              m.Kind,
+			StartTimeUnixNano: m.StartTimeUnixNano,
+			EndTimeUnixNano:   m.EndTimeUnixNano,
+			StatusCode:        m.StatusCode,
+			Attributes:        m.Attributes,
+			Events:            m.Events,
+		})
+	}
+	return out, nil
+}
+
+// GetDashboardStats aggregates executive posture KPIs across all stored assessments.
+func (s *SQLiteStore) GetDashboardStats(ctx context.Context) (*domain.DashboardStats, error) {
+	runs, err := s.ListEvalRuns(ctx, 100)
+	if err != nil {
+		return nil, err
+	}
+	stats := computeRunTotals(runs)
+	if err := s.populateResultBreakdowns(ctx, stats); err != nil {
+		return nil, err
+	}
+	if len(runs) > 6 {
+		stats.RecentRuns = runs[:6]
+	} else {
+		stats.RecentRuns = runs
+	}
+	return stats, nil
+}
+
+func computeRunTotals(runs []domain.EvalRun) *domain.DashboardStats {
+	stats := &domain.DashboardStats{
+		TotalRuns:     int64(len(runs)),
+		StrategyStats: make(map[string]domain.StrategyBypassStat),
+		SeverityStats: make(map[string]int64),
+	}
+	var totalDuration int64
+	for _, r := range runs {
+		stats.TotalTests += int64(r.TotalTests)
+		stats.PassedTests += int64(r.PassedTests)
+		stats.FailedTests += int64(r.FailedTests)
+		stats.TotalTokens += int64(r.TotalTokens)
+		totalDuration += r.DurationMs
+	}
+	if stats.TotalTests > 0 {
+		stats.PassRate = float64(stats.PassedTests) / float64(stats.TotalTests) * 100.0
+	}
+	if stats.TotalRuns > 0 {
+		stats.AvgDurationMs = totalDuration / stats.TotalRuns
+	}
+	return stats
+}
+
+type strategyRow struct {
+	StrategyID string `gorm:"column:strategy_id"`
+	Total      int64  `gorm:"column:total"`
+	Failed     int64  `gorm:"column:failed"`
+}
+
+type severityRow struct {
+	Severity string `gorm:"column:severity"`
+	Count    int64  `gorm:"column:count"`
+}
+
+func (s *SQLiteStore) populateResultBreakdowns(ctx context.Context, stats *domain.DashboardStats) error {
+	var stratRows []strategyRow
+	err := s.db.WithContext(ctx).Model(&EvalResultModel{}).
+		Select("strategy_id, count(*) as total, sum(case when pass = 0 then 1 else 0 end) as failed").
+		Group("strategy_id").
+		Scan(&stratRows).Error
+	if err != nil {
+		return err
+	}
+	for _, sr := range stratRows {
+		bypassRate := 0.0
+		if sr.Total > 0 {
+			bypassRate = float64(sr.Failed) / float64(sr.Total) * 100.0
+		}
+		stats.StrategyStats[sr.StrategyID] = domain.StrategyBypassStat{
+			Total:      sr.Total,
+			Passed:     sr.Total - sr.Failed,
+			Failed:     sr.Failed,
+			BypassRate: bypassRate,
+		}
+	}
+
+	var sevRows []severityRow
+	err = s.db.WithContext(ctx).Model(&EvalResultModel{}).
+		Select("severity, count(*) as count").
+		Where("pass = ?", false).
+		Group("severity").
+		Scan(&sevRows).Error
+	if err != nil {
+		return err
+	}
+	for _, svr := range sevRows {
+		stats.SeverityStats[svr.Severity] = svr.Count
+	}
+
+	var topPlugins []domain.PluginFailureStat
+	err = s.db.WithContext(ctx).Model(&EvalResultModel{}).
+		Select("category, plugin_id, count(*) as failures").
+		Where("pass = ?", false).
+		Group("category, plugin_id").
+		Order("failures DESC").
+		Limit(10).
+		Scan(&topPlugins).Error
+	if err != nil {
+		return err
+	}
+	stats.TopFailingPlugins = topPlugins
+	return nil
 }
 
 // ListEvalRuns returns recent evaluation run summaries via GORM.

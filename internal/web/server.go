@@ -70,6 +70,12 @@ func waitForServerShutdown(ctx context.Context, srv *http.Server, errCh <-chan e
 }
 
 func (s *Server) registerRoutes() {
+	s.mux.HandleFunc("GET /api/dashboard/stats", s.handleGetDashboardStats)
+	s.mux.HandleFunc("GET /api/runs", s.handleListRuns)
+	s.mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	s.mux.HandleFunc("GET /api/runs/{id}/results", s.handleGetRunResults)
+	s.mux.HandleFunc("GET /api/runs/{id}/results/{resultId}", s.handleGetResultDetail)
+
 	s.mux.HandleFunc("GET /api/catalog", s.handleGetCatalog)
 	s.mux.HandleFunc("GET /api/datasets/{name}/prompts", s.handleGetDatasetPrompts)
 	s.mux.HandleFunc("GET /api/configs", s.handleListConfigs)

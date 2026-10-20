@@ -46,3 +46,40 @@ export async function saveCustomDataset(name, records) {
   if (!res.ok) throw new Error(data.error || "Failed to save custom dataset");
   return data;
 }
+
+export async function fetchDashboardStats() {
+  const res = await fetch("/api/dashboard/stats");
+  if (!res.ok) throw new Error("Failed to load dashboard statistics");
+  return res.json();
+}
+
+export async function fetchEvalRuns(limit = 50) {
+  const res = await fetch(`/api/runs?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to list evaluation runs");
+  return res.json();
+}
+
+export async function fetchEvalRun(evalID) {
+  const res = await fetch(`/api/runs/${encodeURIComponent(evalID)}`);
+  if (!res.ok) throw new Error(`Failed to load evaluation run ${evalID}`);
+  return res.json();
+}
+
+export async function fetchRunResults(evalID, filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.failedOnly) params.set("failedOnly", "true");
+  if (filters.plugin) params.set("plugin", filters.plugin);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.strategy) params.set("strategy", filters.strategy);
+  if (filters.limit) params.set("limit", filters.limit);
+  const q = params.toString() ? `?${params.toString()}` : "";
+  const res = await fetch(`/api/runs/${encodeURIComponent(evalID)}/results${q}`);
+  if (!res.ok) throw new Error(`Failed to load results for ${evalID}`);
+  return res.json();
+}
+
+export async function fetchResultDetail(evalID, resultID) {
+  const res = await fetch(`/api/runs/${encodeURIComponent(evalID)}/results/${encodeURIComponent(resultID)}`);
+  if (!res.ok) throw new Error(`Failed to load result detail ${resultID}`);
+  return res.json();
+}
