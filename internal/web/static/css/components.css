@@ -183,6 +183,11 @@
   background-color: rgba(56, 189, 248, 0.08);
 }
 
+.check-card.partial {
+  border-color: rgba(56, 189, 248, 0.45);
+  background-color: rgba(56, 189, 248, 0.04);
+}
+
 .check-card-body {
   flex: 1;
   min-width: 0;

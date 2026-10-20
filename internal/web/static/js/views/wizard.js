@@ -409,6 +409,22 @@ function renderPromptPickerModal(panel, container, showToast) {
 function mountStep4Plugins(body, container, showToast) {
   const cfg = appState.config;
   cfg.redteam = cfg.redteam || { numTestsPerPlugin: 2, languages: ["en", "tr"], plugins: [] };
+
+  // Expand any legacy collection IDs directly in redteam.plugins into member plugins
+  const legacyCols = (cfg.redteam.plugins || []).filter((p) => p.id && p.id.startsWith("gort:collection:"));
+  if (legacyCols.length > 0) {
+    const toAdd = [];
+    legacyCols.forEach((colEntry) => {
+      const members = appState.catalog.collections[colEntry.id] || [];
+      members.forEach((mId) => {
+        if (!cfg.redteam.plugins.some((p) => p.id === mId)) {
+          toAdd.push({ id: mId, numTests: colEntry.numTests || cfg.redteam.numTestsPerPlugin || 1 });
+        }
+      });
+    });
+    cfg.redteam.plugins = cfg.redteam.plugins.filter((p) => !p.id.startsWith("gort:collection:")).concat(toAdd);
+  }
+
   const selectedMap = new Map((cfg.redteam.plugins || []).map((p) => [p.id, p]));
   const collections = Object.keys(appState.catalog.collections || {}).sort();
   const allPlugins = appState.catalog.plugins || [];
@@ -423,9 +439,11 @@ function mountStep4Plugins(body, container, showToast) {
     return catMatch && qMatch;
   });
 
+  const totalActivePlugins = selectedMap.size;
+
   body.innerHTML = `
     <div class="card">
-      <div class="card-header"><span class="card-title">4A. Synthesis Settings &amp; 14 Preset Collections</span></div>
+      <div class="card-header"><span class="card-title">4A. Synthesis Settings &amp; 14 Preset Collections (Selecting a bundle activates all its plugins in 4B)</span></div>
       <div class="form-grid">
         <div class="form-group">
           <label>Default <code>numTestsPerPlugin</code></label>
@@ -436,16 +454,22 @@ function mountStep4Plugins(body, container, showToast) {
           <input id="inp-langs" class="input-text" value="${escapeAttr((cfg.redteam.languages || ["en"]).join(", "))}" />
         </div>
       </div>
-      <div class="SelectGrid" style="max-height:200px;">
+      <div class="SelectGrid" style="max-height:220px;">
         ${collections.map((col) => {
-          const checked = selectedMap.has(col);
-          const count = (appState.catalog.collections[col] || []).length;
+          const memberIds = appState.catalog.collections[col] || [];
+          const count = memberIds.length;
+          const selectedMembersCount = memberIds.filter((pid) => selectedMap.has(pid)).length;
+          const allSelected = count > 0 && selectedMembersCount === count;
+          const partial = selectedMembersCount > 0 && !allSelected;
+          const cardClass = allSelected ? "selected" : (partial ? "partial" : "");
           return `
-            <label class="check-card ${checked ? "selected" : ""}">
-              <input type="checkbox" class="chk-plugin-id" data-id="${escapeAttr(col)}" ${checked ? "checked" : ""} />
+            <label class="check-card ${cardClass}" style="cursor:pointer;">
+              <input type="checkbox" class="chk-collection-col" data-col="${escapeAttr(col)}" data-partial="${partial ? "true" : "false"}" ${allSelected ? "checked" : ""} />
               <div class="check-card-body">
                 <div class="check-card-title">${escapeAttr(col)}</div>
-                <div class="check-card-desc">Preset bundle (${count} plugins)</div>
+                <div class="check-card-desc">
+                  ${count === 0 ? "Empty bundle" : (allSelected ? `All ${count} plugins active` : (partial ? `${selectedMembersCount} / ${count} plugins active` : `Preset bundle (${count} plugins)`))}
+                </div>
               </div>
             </label>
           `;
@@ -455,12 +479,14 @@ function mountStep4Plugins(body, container, showToast) {
 
     <div class="card">
       <div class="card-header">
-        <span class="card-title">4B. Individual Redteam Plugins (${filteredPlugins.length} of ${allPlugins.length})</span>
-        <div style="display:flex;gap:8px;">
+        <span class="card-title">4B. Individual Redteam Plugins (${totalActivePlugins} of ${allPlugins.length} selected)</span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="btn-select-filtered" class="btn btn-outline" style="padding:4px 8px;font-size:11px;" title="Select all currently filtered plugins">+ Select Filtered (${filteredPlugins.length})</button>
+          <button id="btn-deselect-all-pl" class="btn btn-outline" style="padding:4px 8px;font-size:11px;" title="Clear all plugin selections">Clear All</button>
           <select id="sel-plugin-cat" class="input-select" style="width:160px;">
             ${categories.map((c) => `<option value="${escapeAttr(c)}" ${c === pluginCategoryFilter ? "selected" : ""}>Category: ${escapeAttr(c)}</option>`).join("")}
           </select>
-          <input id="inp-plugin-search" class="input-text" style="width:220px;" placeholder="Filter plugins..." value="${escapeAttr(pluginSearchQuery)}" />
+          <input id="inp-plugin-search" class="input-text" style="width:200px;" placeholder="Filter plugins..." value="${escapeAttr(pluginSearchQuery)}" />
         </div>
       </div>
       <div style="max-height:340px;overflow-y:auto;">
@@ -496,6 +522,55 @@ function mountStep4Plugins(body, container, showToast) {
       </div>
     </div>
   `;
+
+  body.querySelectorAll(".chk-collection-col").forEach((chk) => {
+    if (chk.dataset.partial === "true") {
+      chk.indeterminate = true;
+    }
+    chk.addEventListener("change", () => {
+      const col = chk.dataset.col;
+      const memberIds = appState.catalog.collections[col] || [];
+      const currentSelected = new Set((cfg.redteam.plugins || []).map((p) => p.id));
+      const allSelected = memberIds.length > 0 && memberIds.every((pid) => currentSelected.has(pid));
+
+      if (chk.checked || !allSelected) {
+        memberIds.forEach((pid) => {
+          if (!currentSelected.has(pid)) {
+            cfg.redteam.plugins.push({ id: pid, numTests: cfg.redteam.numTestsPerPlugin || 1 });
+            currentSelected.add(pid);
+          }
+        });
+        showToast(`Activated all ${memberIds.length} plugins in bundle '${col}'`);
+      } else {
+        const removeSet = new Set(memberIds);
+        cfg.redteam.plugins = cfg.redteam.plugins.filter((p) => !removeSet.has(p.id));
+        showToast(`Deactivated all plugins in bundle '${col}'`);
+      }
+      notify();
+      mountStep4Plugins(body, container, showToast);
+    });
+  });
+
+  body.querySelector("#btn-select-filtered")?.addEventListener("click", () => {
+    const currentSet = new Set((cfg.redteam.plugins || []).map((p) => p.id));
+    filteredPlugins.forEach((p) => {
+      const pid = p.id || p.ID;
+      if (!currentSet.has(pid)) {
+        cfg.redteam.plugins.push({ id: pid, numTests: cfg.redteam.numTestsPerPlugin || 1 });
+        currentSet.add(pid);
+      }
+    });
+    notify();
+    mountStep4Plugins(body, container, showToast);
+    showToast(`Added ${filteredPlugins.length} filtered plugins to assessment!`);
+  });
+
+  body.querySelector("#btn-deselect-all-pl")?.addEventListener("click", () => {
+    cfg.redteam.plugins = [];
+    notify();
+    mountStep4Plugins(body, container, showToast);
+    showToast("Cleared all selected plugins");
+  });
 
   body.querySelector("#inp-numtests").addEventListener("input", (e) => {
     cfg.redteam.numTestsPerPlugin = Number(e.target.value) || 1;
