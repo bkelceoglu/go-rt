@@ -128,3 +128,10 @@ export function streamAssessmentLogs(onMessage, onError) {
   };
   return es;
 }
+
+export async function fetchExecutiveReport(evalId = "") {
+  const q = evalId ? `?evalId=${encodeURIComponent(evalId)}` : "";
+  const res = await fetch(`/api/reports/executive${q}`);
+  if (!res.ok) throw new Error("Failed to load executive report");
+  return res.json();
+}

@@ -14,6 +14,7 @@ import { renderCatalogView } from "./views/catalog.js";
 import { renderDashboardView } from "./views/dashboard.js";
 import { renderRunsView } from "./views/runs.js";
 import { renderLiveView } from "./views/live.js";
+import { renderReportsView } from "./views/reports.js";
 
 let currentRoute = "wizard";
 
@@ -75,6 +76,8 @@ function renderActiveRoute() {
     renderRunsView(container, showToast);
   } else if (currentRoute === "live") {
     renderLiveView(container, showToast);
+  } else if (currentRoute === "reports") {
+    renderReportsView(container, showToast);
   } else {
     container.innerHTML = `
       <div class="card">

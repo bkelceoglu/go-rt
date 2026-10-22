@@ -90,6 +90,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/assessments/status", s.handleGetAssessmentStatus)
 	s.mux.HandleFunc("GET /api/logs/tail", s.handleGetLogsTail)
 	s.mux.HandleFunc("GET /api/logs/stream", s.handleStreamLogs)
+	s.mux.HandleFunc("GET /api/reports/executive", s.handleGetExecutiveReport)
 
 	s.registerStaticSubtree()
 }

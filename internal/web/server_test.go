@@ -32,6 +32,7 @@ func TestWebServerCatalogAndConfigWizardAPIs(t *testing.T) {
 	verifyCustomDatasetSaveAndLoad(t, ts.URL)
 	verifyDashboardAndRunsEndpoints(t, ts.URL, db)
 	verifyAssessmentAndLogEndpoints(t, ts.URL)
+	verifyReportsEndpoint(t, ts.URL)
 }
 
 func verifyIndexPage(t *testing.T, baseURL string) {
@@ -249,4 +250,24 @@ func verifyAssessmentStartInvalid(t *testing.T, baseURL string) {
 		t.Fatalf("expected 400 for non-existent config, got status=%v err=%v", resp, err)
 	}
 	resp.Body.Close()
+}
+
+func verifyReportsEndpoint(t *testing.T, baseURL string) {
+	resp, err := http.Get(baseURL + "/api/reports/executive")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("get executive report failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var report struct {
+		Scope string `json:"scope"`
+		Stats struct {
+			TotalRuns int64 `json:"totalRuns"`
+		} `json:"stats"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatalf("decode executive report: %v", err)
+	}
+	if report.Stats.TotalRuns < 1 {
+		t.Fatalf("expected at least 1 run in report stats, got %d", report.Stats.TotalRuns)
+	}
 }
