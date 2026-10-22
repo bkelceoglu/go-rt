@@ -135,6 +135,8 @@ type PluginFailureStat struct {
 
 // DashboardStats summarizes executive security posture across evaluation runs.
 type DashboardStats struct {
+	Scope             string                        `json:"scope"`
+	SelectedEvalID    string                        `json:"selectedEvalId"`
 	TotalRuns         int64                         `json:"totalRuns"`
 	TotalTests        int64                         `json:"totalTests"`
 	PassedTests       int64                         `json:"passedTests"`

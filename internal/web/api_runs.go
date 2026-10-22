@@ -9,7 +9,8 @@ import (
 )
 
 func (s *Server) handleGetDashboardStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.db.GetDashboardStats(r.Context())
+	evalID := strings.TrimSpace(r.URL.Query().Get("evalId"))
+	stats, err := s.db.GetDashboardStats(r.Context(), evalID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get dashboard stats: "+err.Error())
 		return

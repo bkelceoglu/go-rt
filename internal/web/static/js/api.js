@@ -47,8 +47,9 @@ export async function saveCustomDataset(name, records) {
   return data;
 }
 
-export async function fetchDashboardStats() {
-  const res = await fetch("/api/dashboard/stats");
+export async function fetchDashboardStats(evalId = "") {
+  const q = evalId ? `?evalId=${encodeURIComponent(evalId)}` : "";
+  const res = await fetch(`/api/dashboard/stats${q}`);
   if (!res.ok) throw new Error("Failed to load dashboard statistics");
   return res.json();
 }

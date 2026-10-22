@@ -123,22 +123,40 @@ func (s *SQLiteStore) GetSpansByTrace(ctx context.Context, traceID string) ([]do
 	return out, nil
 }
 
-// GetDashboardStats aggregates executive posture KPIs across all stored assessments.
-func (s *SQLiteStore) GetDashboardStats(ctx context.Context) (*domain.DashboardStats, error) {
+// GetDashboardStats aggregates executive posture KPIs across all or specific stored assessments.
+func (s *SQLiteStore) GetDashboardStats(ctx context.Context, evalID string) (*domain.DashboardStats, error) {
 	runs, err := s.ListEvalRuns(ctx, 100)
 	if err != nil {
 		return nil, err
 	}
-	stats := computeRunTotals(runs)
-	if err := s.populateResultBreakdowns(ctx, stats); err != nil {
+	targetEvalID, runsToCompute, scope := resolveDashboardTarget(runs, evalID)
+	stats := computeRunTotals(runsToCompute)
+	stats.Scope = scope
+	stats.SelectedEvalID = targetEvalID
+	stats.TotalRuns = int64(len(runs))
+	if err := s.populateResultBreakdowns(ctx, stats, targetEvalID); err != nil {
 		return nil, err
 	}
-	if len(runs) > 6 {
-		stats.RecentRuns = runs[:6]
-	} else {
-		stats.RecentRuns = runs
-	}
+	stats.RecentRuns = runs
 	return stats, nil
+}
+
+func resolveDashboardTarget(runs []domain.EvalRun, evalID string) (string, []domain.EvalRun, string) {
+	if len(runs) == 0 {
+		return "", nil, "empty"
+	}
+	if evalID == "all" {
+		return "", runs, "all"
+	}
+	if evalID == "" || evalID == "latest" {
+		return runs[0].EvalID, []domain.EvalRun{runs[0]}, "latest"
+	}
+	for _, r := range runs {
+		if r.EvalID == evalID {
+			return r.EvalID, []domain.EvalRun{r}, evalID
+		}
+	}
+	return runs[0].EvalID, []domain.EvalRun{runs[0]}, "latest"
 }
 
 func computeRunTotals(runs []domain.EvalRun) *domain.DashboardStats {
@@ -158,8 +176,8 @@ func computeRunTotals(runs []domain.EvalRun) *domain.DashboardStats {
 	if stats.TotalTests > 0 {
 		stats.PassRate = float64(stats.PassedTests) / float64(stats.TotalTests) * 100.0
 	}
-	if stats.TotalRuns > 0 {
-		stats.AvgDurationMs = totalDuration / stats.TotalRuns
+	if len(runs) > 0 {
+		stats.AvgDurationMs = totalDuration / int64(len(runs))
 	}
 	return stats
 }
@@ -175,13 +193,24 @@ type severityRow struct {
 	Count    int64  `gorm:"column:count"`
 }
 
-func (s *SQLiteStore) populateResultBreakdowns(ctx context.Context, stats *domain.DashboardStats) error {
+func (s *SQLiteStore) populateResultBreakdowns(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
+	if err := s.queryStrategyBreakdown(ctx, stats, targetEvalID); err != nil {
+		return err
+	}
+	if err := s.querySeverityBreakdown(ctx, stats, targetEvalID); err != nil {
+		return err
+	}
+	return s.queryTopFailingPlugins(ctx, stats, targetEvalID)
+}
+
+func (s *SQLiteStore) queryStrategyBreakdown(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
 	var stratRows []strategyRow
-	err := s.db.WithContext(ctx).Model(&EvalResultModel{}).
-		Select("strategy_id, count(*) as total, sum(case when pass = 0 then 1 else 0 end) as failed").
-		Group("strategy_id").
-		Scan(&stratRows).Error
-	if err != nil {
+	tx := s.db.WithContext(ctx).Model(&EvalResultModel{}).
+		Select("strategy_id, count(*) as total, sum(case when pass = 0 then 1 else 0 end) as failed")
+	if targetEvalID != "" {
+		tx = tx.Where("eval_id = ?", targetEvalID)
+	}
+	if err := tx.Group("strategy_id").Scan(&stratRows).Error; err != nil {
 		return err
 	}
 	for _, sr := range stratRows {
@@ -196,29 +225,35 @@ func (s *SQLiteStore) populateResultBreakdowns(ctx context.Context, stats *domai
 			BypassRate: bypassRate,
 		}
 	}
+	return nil
+}
 
+func (s *SQLiteStore) querySeverityBreakdown(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
 	var sevRows []severityRow
-	err = s.db.WithContext(ctx).Model(&EvalResultModel{}).
+	tx := s.db.WithContext(ctx).Model(&EvalResultModel{}).
 		Select("severity, count(*) as count").
-		Where("pass = ?", false).
-		Group("severity").
-		Scan(&sevRows).Error
-	if err != nil {
+		Where("pass = ?", false)
+	if targetEvalID != "" {
+		tx = tx.Where("eval_id = ?", targetEvalID)
+	}
+	if err := tx.Group("severity").Scan(&sevRows).Error; err != nil {
 		return err
 	}
 	for _, svr := range sevRows {
 		stats.SeverityStats[svr.Severity] = svr.Count
 	}
+	return nil
+}
 
+func (s *SQLiteStore) queryTopFailingPlugins(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
 	var topPlugins []domain.PluginFailureStat
-	err = s.db.WithContext(ctx).Model(&EvalResultModel{}).
+	tx := s.db.WithContext(ctx).Model(&EvalResultModel{}).
 		Select("category, plugin_id, count(*) as failures").
-		Where("pass = ?", false).
-		Group("category, plugin_id").
-		Order("failures DESC").
-		Limit(10).
-		Scan(&topPlugins).Error
-	if err != nil {
+		Where("pass = ?", false)
+	if targetEvalID != "" {
+		tx = tx.Where("eval_id = ?", targetEvalID)
+	}
+	if err := tx.Group("category, plugin_id").Order("failures DESC").Limit(10).Scan(&topPlugins).Error; err != nil {
 		return err
 	}
 	stats.TopFailingPlugins = topPlugins

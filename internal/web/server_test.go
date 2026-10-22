@@ -152,12 +152,21 @@ func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, s *store.SQLi
 		t.Fatalf("save result: %v", err)
 	}
 
-	// 1. Check /api/dashboard/stats
-	resp, err := http.Get(baseURL + "/api/dashboard/stats")
-	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("dashboard stats failed: %v", err)
+	// 1. Check /api/dashboard/stats (default latest, all, and specific run)
+	for _, q := range []string{"", "?evalId=latest", "?evalId=all", "?evalId=eval-test-phase62"} {
+		resp, err := http.Get(baseURL + "/api/dashboard/stats" + q)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("dashboard stats failed for query %q: %v", q, err)
+		}
+		var stats domain.DashboardStats
+		if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+			t.Fatalf("decode stats failed for query %q: %v", q, err)
+		}
+		resp.Body.Close()
+		if stats.TotalRuns < 1 {
+			t.Fatalf("expected at least 1 total run, got %d for query %q", stats.TotalRuns, q)
+		}
 	}
-	resp.Body.Close()
 
 	// 2. Check /api/runs
 	runsResp, err := http.Get(baseURL + "/api/runs")
