@@ -2,7 +2,7 @@
 import { fetchDashboardStats } from "../api.js";
 import { escapeAttr, appState } from "../state.js";
 
-let currentScope = "latest"; // Default: "Sadece Son Oturum" (Latest Run)
+let currentScope = "latest"; // Default: "latest" (Latest Assessment Run)
 
 export async function renderDashboardView(container, showToast, navigateToRoute, scope = currentScope) {
   currentScope = scope;
@@ -38,24 +38,24 @@ function mountDashboardContent(container, stats, showToast, navigateToRoute) {
     <div class="card" style="margin-bottom:18px;">
       <div class="card-header" style="flex-wrap:wrap;gap:12px;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <label class="inline-label" for="sel-dash-scope"><strong>Görüntüleme Kapsamı:</strong></label>
+          <label class="inline-label" for="sel-dash-scope"><strong>View Scope:</strong></label>
           <select id="sel-dash-scope" class="input-select" style="min-width:340px;">
             <option value="latest" ${currentScope === "latest" ? "selected" : ""}>
-              ⚡ Sadece Son Oturum ${latestRun ? `(En Son: ${latestRun.evalId})` : ""}
+              ⚡ Latest Run Only ${latestRun ? `(Latest: ${latestRun.evalId})` : ""}
             </option>
             <option value="all" ${currentScope === "all" ? "selected" : ""}>
-              🌐 Tüm Zamanlar / All-Time Cumulative (${runs.length} Oturum)
+              🌐 All-Time Cumulative (${runs.length} Sessions)
             </option>
             ${runs.map((r, idx) => `
               <option value="${escapeAttr(r.evalId)}" ${currentScope === r.evalId ? "selected" : ""}>
-                Oturum #${idx + 1}: ${escapeAttr(r.evalId)} (${r.passedTests}/${r.totalTests} Pass • ${escapeAttr(r.description || "Assessment")})
+                Session #${idx + 1}: ${escapeAttr(r.evalId)} (${r.passedTests}/${r.totalTests} Pass • ${escapeAttr(r.description || "Assessment")})
               </option>
             `).join("")}
           </select>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <span class="badge ${isAllTime ? "badge-info" : "badge-medium"}" style="font-size:12px;padding:5px 10px;">
-            ${isAllTime ? `🌐 TÜM ZAMANLAR (${runs.length} OTURUM)` : `⚡ ${stats.selectedEvalId ? `OTURUM: ${stats.selectedEvalId}` : "SON OTURUM"}`}
+            ${isAllTime ? `🌐 ALL-TIME (${runs.length} SESSIONS)` : `⚡ ${stats.selectedEvalId ? `SESSION: ${stats.selectedEvalId}` : "LATEST RUN"}`}
           </span>
         </div>
       </div>
@@ -70,7 +70,7 @@ function mountDashboardContent(container, stats, showToast, navigateToRoute) {
           <div class="meter-fill ${passClass}" style="width:${passRate}%;"></div>
         </div>
         <div class="kpi-meta" style="margin-top:6px;">
-          ${isAllTime ? "Tüm geçmiş testlerde başarı oranı" : `Seçili oturumda (${stats.passedTests}/${stats.totalTests}) test savunuldu`}
+          ${isAllTime ? "Cumulative defense pass rate across all historical tests" : `Defended (${stats.passedTests}/${stats.totalTests}) test cases in selected session`}
         </div>
       </div>
 
@@ -79,19 +79,19 @@ function mountDashboardContent(container, stats, showToast, navigateToRoute) {
         <div class="kpi-value" style="font-size:${isAllTime ? "24px" : "18px"};">
           ${isAllTime ? `${stats.totalRuns || 0} Runs` : (latestRun?.targetProviders?.[0] || "Target Model")}
         </div>
-        <div class="kpi-meta">${stats.totalTests || 0} test vakası değerlendirildi</div>
+        <div class="kpi-meta">${stats.totalTests || 0} test cases evaluated</div>
       </div>
 
       <div class="kpi-card">
         <div class="kpi-label">Vulnerabilities (Bypasses)</div>
         <div class="kpi-value" style="color:${stats.failedTests > 0 ? "#ef4444" : "#10b981"};">${stats.failedTests || 0}</div>
-        <div class="kpi-meta">${stats.passedTests || 0} saldırı başarıyla savuşturuldu</div>
+        <div class="kpi-meta">${stats.passedTests || 0} attacks successfully defended</div>
       </div>
 
       <div class="kpi-card">
         <div class="kpi-label">Compute &amp; Latency</div>
         <div class="kpi-value">${Math.round((stats.totalTokens || 0) / 1000)}k <span style="font-size:14px;color:var(--text-secondary);">toks</span></div>
-        <div class="kpi-meta">Gecikme süresi: ${((stats.avgDurationMs || 0) / 1000).toFixed(1)}s</div>
+        <div class="kpi-meta">Avg latency: ${((stats.avgDurationMs || 0) / 1000).toFixed(1)}s</div>
       </div>
     </div>
 
