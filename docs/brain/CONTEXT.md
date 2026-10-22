@@ -5,7 +5,7 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0, Faz 1, Faz 2, Faz 3, Faz 4 ve Faz 5 Tamamlandı ✅ (CLI Motoru %100 Hazır) $\rightarrow$ Sıradaki: **Faz 6 (Yerleşik Web UI & Raporlama)**
+- **Aktif Faz:** Faz 0, Faz 1, Faz 2, Faz 3, Faz 4, Faz 5 ve Faz 6 Tamamlandı ✅ (CLI Motoru & Web Command Center %100 Hazır)
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
@@ -13,7 +13,8 @@
   - `plugin_collections`: **14 hazır koleksiyon** (`gort:collection:*`)
   - `dataset_sources`: **17 uzak ve yerleşik veri seti kaynağı** (GitHub CSV/JSON/MD + HuggingFace REST API)
   - `prompt_bank`: **20 isimlendirilmiş veri seti (`dataset_name`)**, toplam **~8,250+ tekilleştirilmiş saldırı promptu** (`advbench_harmful_goals`, `aegis_safety`, `beavertails_unsafe`, `bipia_ipi`, `chatgpt_jailbreak_templates`, `cyberseceval_injections`, `deepset_injections`, `donotanswer`, `enterprise_security_suite`, `harmbench_functional`, `injecagent_ipi`, `jackhhao_jailbreaks`, `lakera_gandalf`, `pliny_l1b3rt4s`, `shomi28_injections`, `toxicchat_wild`, `xstest_prompts`, `master_red_team_100`, `master_red_team_1000`, `master_red_team_full`)
-- **Ergonomik CLI Komut Standardı:**
+- **Ergonomik CLI & Web Komut Standardı:**
+  - `gort view [port]` (varsayılan `:8585`) $\rightarrow$ Sıfır dış bağımlılıklı (`//go:embed`) Web Command Center'ı açar (Config Wizard, SQLite Catalog Gezgini, Executive Dashboard, Runs & Transcript Inspector, Canlı Saldırı Başlatıcı & SSE Terminal Konsolu, Kurumsal Güvenlik Raporu).
   - `gort [config.yaml] <dataset_name|index|file.csv> [-v|--verbose]` $\rightarrow$ Seçilen veri setini (isim veya `1..20` sıra numarasıyla) koşturur (Attacker LLM devreye girmez).
   - `gort [config.yaml] all [-v|--verbose]` $\rightarrow$ SQLite `prompt_bank` içindeki tüm veri setlerini sırayla koşturur.
   - `gort config.yaml [-v|--verbose]` $\rightarrow$ Veri seti verilmezse `config.yaml` içindeki aktif pluginleri listeler, kullanıcıdan `[y/N]` onayı alır ve Attacker LLM ile üretim yapar.
@@ -59,3 +60,4 @@
 | `internal/telemetry` | W3C `TraceID`/`SpanID` ve OTel GenAI Semantik Conventions (`tracer.go`) | Tamamlandı ✅ |
 | `internal/strategy` | Statik mutasyonlar (`base64`, `rot13`, `hex`, `leetspeak`, `homoglyph`), `jailbreak-templates`, `layer` ve Multi-Turn (`crescendo`, `goat`, `hydra`) | Tamamlandı ✅ |
 | `internal/engine` | Paralel OTel Evaluator, `TargetOverride` ve Canlı ANSI akışı (`evaluator.go`) | Tamamlandı ✅ |
+| `internal/web` | Sıfır bağımlılıklı Web Command Center (`//go:embed static`): Config Wizard, SQLite Katalog, Executive Dashboard, Runs Inspector, Canlı Saldırı Başlatıcı, SSE Terminal Konsolu ve Yazdırılabilir Denetim Raporu | Tamamlandı ✅ |

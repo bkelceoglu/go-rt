@@ -75,3 +75,8 @@
 - **Karar:** Yerel makinedeki Ollama kurulumu kaldırılmış olup, varsayılan yerel LLM çalışma zamanı `http://localhost:8090` (`~/localAI`, Intel GPU SYCL) üzerinde çalışan **LocalAI** olarak güncellenmiştir. `OpenAICompatibleProvider` içinde `localai:` / `localai:chat:` önekleri ve `LOCALAI_BASE_URL` ortam değişkeni birinci sınıf olarak desteklenir. Varsayılan `config.yaml` yapılandırmasında Target ve Attacker rolleri için `localai:chat:qwen3.8-9b-q4` (~5.8 GB), Judge rolü için `localai:chat:qwen3-4b` (~3.0 GB + DFlash speculative decoding) kullanılır (`maxConcurrency: 2`).
 - **Gerekçe:** 30 GiB sistem belleğinde (~23 GiB kullanılabilir) iki modelin toplam bellek ayak izi (~9.5–10 GiB) rahatça aynı anda sığmakta ve bağımsız bir Judge LLM ile yüksek doğruluklu değerlendirme sağlamaktadır.
 
+## ADR-016: Yerleşik Web Command Center & Sıfır Bağımlılıklı Vanilla JS Mimarisi (Faz 6)
+- **Karar:** Web Command Center (`gort view [port]`), sıfır Node.js/npm dış bağımlılığıyla Vanilla JavaScript (modern ES Modules) ve Go 1.27 standart kütüphanesinin `//go:embed static` altyapısı kullanılarak doğrudan `./bin/gort` ikili dosyası içine gömülmüştür. Arayüz; 5 adımlı interaktif Config Builder Wizard'ı, SQLite Katalog ve Veri Seti Gezginini, Yönetici Güvenlik Panosunu (Executive Dashboard), Çok Turlu Transkript Müfettişini (Runs Inspector), Gerçek Zamanlı SSE Log Akış Konsolunu ve OWASP Top 10 uyumlu, yazdırılabilir (`@media print` / PDF) Denetim Raporu Motorunu içerir.
+- **Gerekçe:** Dağıtımda harici web sunucusu, paket yöneticisi (npm) veya derleme aracı (webpack, vite) gereksinimini ortadan kaldırmak; tek bir statik Go binary'si ile hem terminal hem de kurumsal web arayüzünü anında çalıştırmak.
+
+

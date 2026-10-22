@@ -278,3 +278,79 @@ sqlite3 -header -column .gort/gort.db \
 sqlite3 -header -column .gort/gort.db \
   "SELECT span_id, trace_id, name, status_code, end_time_unix_nano - start_time_unix_nano AS duration_ns FROM otel_spans LIMIT 10;"
 ```
+
+---
+
+## 7. Web Command Center & Real-Time Studio (`gort view`)
+
+GORT embeds a complete, zero-dependency Web Command Center (`//go:embed static`) directly inside the single Go binary:
+
+```bash
+# Start the Web Command Center on default port 8585
+./bin/gort view
+
+# Or specify a custom port
+./bin/gort view 9090
+```
+
+Once running, navigate to `http://localhost:8585` in your browser. The Command Center provides five interconnected operational modules:
+
+### 7.1. Config Builder Wizard (`wizard`)
+- **Interactive 5-Step Pipeline:**
+  1. **General & Purpose:** Set evaluation title, system purpose, prompt template, injection variable (`{{prompt}}`), and max concurrency.
+  2. **Target Models:** Add multiple target models (LocalAI, OpenAI, vLLM, Webhook) with base URLs, API keys, temperature, and thinking mode toggles.
+  3. **Attacker & Judge LLMs:** Configure the automated red-team attacker generator and evaluation Judge LLM with safety rubric.
+  4. **Plugins & Datasets:** 
+     - **4A Preset Collections:** Select high-level suites (`owasp-llm-top-10`, `coding-agent:all`, `harmful`, `pii`, `financial`).
+     - **4B Individual Plugins:** Fine-grained selection across all 155 plugins, automatically kept in bidirectional sync with 4A collections.
+     - **Benchmark Datasets:** Pick standard benchmark datasets or create custom sub-sampled prompt sets.
+  5. **Attack Strategies:** Enable static mutations (`base64`, `rot13`, `hex`, `leetspeak`, `homoglyph`), framing (`jailbreak-templates`), sequential chaining (`layer`), and multi-turn agentic loops (`crescendo`).
+- **Live Bidirectional YAML Editor & Test Case Estimator:**
+  - Real-time serialization of configuration into clean YAML.
+  - Test case multiplier calculator (`Seeds × Strategies = Total Test Cases`).
+  - Blank configuration generator (`+ Blank Config`) or instant template loader (`⚡ Starter Template`).
+  - Disk save & load controls (`Save to Disk`, `Reload`).
+
+### 7.2. SQLite Plugin & Prompt Bank Explorer (`catalog`)
+- Instant offline search across **155 redteam plugins**, **14 compliance collections**, and **20 benchmark datasets**.
+- Filter by category, severity level, or compliance tag.
+- Deep prompt inspector: View exact prompt bank contents directly in the browser.
+
+### 7.3. Executive Security Dashboard (`dashboard`)
+- **Top-line Posture KPIs:** Overall defense pass rate (%), total test cases evaluated, breaches/jailbreaks detected, total token spend, and average latency.
+- **Scope Filter:** Toggle between:
+  - `Latest Run` (Default): Analyzes only the most recent evaluation session.
+  - `All-Time Cumulative`: Aggregates every evaluation run in SQLite history.
+  - Specific past runs by `eval_id`.
+- **Strategy Bypass Analytics:** Direct visual comparison of which adversarial strategies bypassed the target's defenses.
+- **OWASP LLM Top 10 Risk Breakdown:** Severity metrics (Critical, High, Medium, Low) and most vulnerable plugin areas.
+
+### 7.4. Assessment Runs & Deep Transcript Inspector (`runs`)
+- List and inspect all historical evaluation runs stored in `.gort/gort.db`.
+- Filter results by outcome (`All`, `Failed / Vulnerable`, `Passed / Defended`), plugin category, or attack strategy.
+- Detailed modal inspector:
+  - Side-by-side comparison of Raw Prompt vs. Mutated Adversarial Prompt vs. Target Response.
+  - Judge assessment reasoning and rubric score.
+  - **Multi-Turn Crescendo Chat Bubbles:** Visual turn-by-turn conversation view with red `[BACKTRACKED]` badges indicating when the attacker rolled back following a target refusal.
+  - **OpenTelemetry GenAI Span Waterfall Tree:** Full distributed trace spans showing internal operations, latencies, and semantic attributes.
+
+### 7.5. Live Attack Launcher & SSE Terminal Console (`live`)
+- **Launch Controls:** Trigger red-team assessments directly from the browser using either the in-memory Wizard YAML or a saved configuration file on disk.
+- **Operator Stop:** Gracefully terminate running assessments with a single click.
+- **Live Telemetry HUD:** Real-time counters for active target model, dataset, progress (`X / Y` cases), pass/fail tallies, and elapsed time.
+- **Real-Time Terminal Console:**
+  - Streams `.gort/gort.log` live via Server-Sent Events (`GET /api/logs/stream`).
+  - Dark terminal styling with automatic event color-coding (`[FAIL]`, `[PASS]`, `[WARN]`, `[ERROR]`, `[INFO]`, `[SYSTEM]`).
+  - Auto-scroll lock toggle, real-time keyword search filter, and console clear controls.
+
+### 7.6. Executive Audit & Compliance Reports (`reports`)
+- **Official Security Audit Document:**
+  - Standardized corporate reporting format mapping results to **OWASP Top 10 for LLMs** (LLM01–LLM10), **NIST AI RMF 1.0**, and **MITRE ATLAS**.
+  - Top-line security posture status badge: `SECURE / LOW RESIDUAL RISK`, `MODERATE RISK`, or `CRITICAL VULNERABILITIES DETECTED`.
+  - Comprehensive Strategy Bypass analysis table.
+  - Critical Vulnerability Findings with full prompt and target response evidence.
+  - Formal Lead Auditor Attestation & Signature block.
+- **Export & Print Capabilities:**
+  - `⬇ Export JSON`: Download the full structured audit data package.
+  - `⎙ Print / Save as PDF`: Native `@media print` CSS engine produces clean, high-contrast, professional A4/Letter audit PDFs with zero UI clutter.
+

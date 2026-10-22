@@ -30,6 +30,13 @@ It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated pr
 5. **Hybrid Two-Stage Grader & OpenTelemetry GenAI Tracing:**
    - Fast deterministic refusal (`IsBasicRefusal`) and forbidden-substring (`notContains`) checks, followed by LLM-as-a-Judge (`RubricGrader`).
    - Every run and test case emits W3C `TraceID` / `SpanID` telemetry persisted in `eval_runs`, `eval_results`, and `otel_spans`.
+6. **Embedded Web Command Center & Real-Time Studio (`gort view`):**
+   - Zero-dependency Vanilla JS ES modules embedded via Go `//go:embed static` into the single `./bin/gort` binary.
+   - **5-Step Config Builder Wizard:** Visual builder with bidirectional live YAML sync, test case estimator, blank config and starter template support.
+   - **Executive Security Dashboard:** Top-line defense posture KPIs (% pass rate, breaches, token costs, strategy bypass analytics, severity breakdown) with instantaneous scope filtering (Latest Run vs. All-Time Cumulative vs. specific run).
+   - **Deep Transcript Inspector:** Visual multi-turn Crescendo chat bubbles with `[BACKTRACKED]` markers and full OpenTelemetry GenAI span waterfall trees.
+   - **Live Attack Launcher & Real-Time Terminal Console:** Trigger/stop assessments from the browser while streaming `.gort/gort.log` live over Server-Sent Events (SSE).
+   - **Executive Audit & Compliance Reports:** OWASP Top 10 for LLMs compliance matrix, Lead Auditor attestation & signature block, JSON export, and `@media print` optimized standalone PDF/paper printing.
 
 ---
 
@@ -37,8 +44,9 @@ It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated pr
 
 ```mermaid
 flowchart TB
-    subgraph CLI["1. ERGONOMIC CLI (cmd/gort)"]
-        Cmd["gort ls | gort plugins | gort pull | gort <dataset> | gort config.yaml"]
+    subgraph UI["1. USER INTERFACES (cmd/gort)"]
+        CLI["Ergonomic CLI\ngort ls | plugins | pull | <dataset> | config.yaml | results"]
+        WebUI["Web Command Center (gort view :8585)\nConfig Wizard | Dashboard | Runs Inspector | Live SSE | Reports"]
     end
 
     subgraph Supply["2. DUAL PROMPT SUPPLY & STRATEGY PIPELINE"]
@@ -51,7 +59,7 @@ flowchart TB
     subgraph Engine["3. CONCURRENT EVALUATOR & MULTI-TURN ENGINE"]
         SafeRender["SSTI-Safe Boundary Renderer\n(internal/template)"]
         Agentic["Crescendo / GOAT / Hydra Decorator\nConversationMemory + RollbackLastTurn + Unblocker"]
-        Target["Target Provider\nllama.cpp (:8080) | OpenAI | vLLM | Ollama | Webhook"]
+        Target["Target Provider\nLocalAI (:8090) | llama.cpp (:8080) | OpenAI | vLLM | Webhook"]
         Grader["Hybrid Grader (internal/grader)\nDeterministic Refusal + Judge LLM Rubric"]
     end
 
@@ -59,10 +67,11 @@ flowchart TB
         Tables[("eval_runs | eval_results | otel_spans\nW3C TraceID / SpanID + JSON Conversation History")]
     end
 
-    Cmd --> DBBank & Catalog
+    CLI & WebUI --> DBBank & Catalog
     Catalog --> Synth
     DBBank & Synth --> Strat
     Strat --> SafeRender --> Agentic --> Target --> Grader --> Tables
+    Tables -.-> WebUI & CLI
 ```
 
 ---
@@ -126,6 +135,13 @@ make all
 tail -f .gort/gort.log
 ```
 
+### 4. Launch the Web Command Center & Real-Time Studio
+```bash
+# Start embedded Web UI on default port 8585 (or pass custom port)
+./bin/gort view 8585
+# Navigate to http://localhost:8585
+```
+
 ---
 
 ## Project Layout
@@ -146,7 +162,8 @@ go-rt/
 │   ├── strategy/              # Static encoders, jailbreak framing templates, layer & multi-turn pipeline
 │   ├── telemetry/             # W3C TraceID/SpanID generator & OpenTelemetry GenAI semantic attributes
 │   ├── template/              # Two-phase SSTI-safe cryptographic boundary template renderer
-│   └── ui/                    # Zero-dependency TTY/NO_COLOR-aware ANSI styling and column alignment
+│   ├── ui/                    # Zero-dependency TTY/NO_COLOR-aware ANSI styling and column alignment
+│   └── web/                   # Embedded Web Command Center (//go:embed static), REST APIs, SSE & reports
 ├── docs/
 │   ├── HOWTO.md               # Comprehensive step-by-step usage & configuration guide
 │   ├── MASTER_PLAN.md         # Architectural blueprint

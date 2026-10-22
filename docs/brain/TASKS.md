@@ -61,6 +61,27 @@
 
 ---
 
-## Faz 6: Web Dashboard, Yönetici Raporu & Docker Compose Altyapısı ⏳
-- [ ] SQLite ve PostgreSQL üzerindeki OTel verilerini görselleştiren yerleşik Web UI (`gort --view`)
-- [ ] Kurumsal Yönetici Özeti (Executive Summary) HTML/PDF rapor üreticisi ve Docker Compose yapılandırması
+## Faz 6: Yerleşik Web Command Center, Canlı Saldırı Konsolu & Denetim Raporları (`gort view`) ✅
+- [x] **Adım 6.1 — Web Command Center Altyapısı, Config Builder Wizard & Katalog Gezgini (`internal/web`):**
+  - Tek binary sıfır bağımlılıklı `//go:embed static` mimarisi ve Go 1.27 `http.ServeMux` REST API yönlendirme (`api_catalog.go`, `api_config.go`).
+  - 3 kolonlu modern UI: Sol gezinti paneli, dinamik çalışma alanı, sağ canlı YAML önizleme ve test senaryosu hesaplayıcı.
+  - 5 adımlı modüler Config Wizard (`wizard.js`): Genel/Amaç, Hedef Modeller (LocalAI, OpenAI, vLLM, Webhook), Attacker & Judge LLM, 4A Preset Koleksiyonlar ile 4B Tekil Pluginler arası çift yönlü tam senkronizasyon, ve Saldırı Stratejileri.
+  - YAML yoksa boş başlama (`+ Blank Config`), tek tıkla şablon getirme (`⚡ Starter Template`) ve iki yönlü canlı YAML editörü.
+  - SQLite Katalog Gezgini (`catalog.js`): 155 plugin, 14 koleksiyon ve 20 benchmark veri seti için anlık arama, filtreleme ve detaylı prompt önizleme.
+- [x] **Adım 6.2 — Executive Security Dashboard & Runs Inspector (`api_runs.go`, `dashboard.js`, `runs.js`):**
+  - Güvenlik Duruşu KPI'ları: Savunma oranı (% pass rate), tespit edilen zafiyetler, toplam işlem maliyeti (token), ortalama gecikme.
+  - Strateji Bypass Analitiği: Her bir saldırı stratejisinin başarı/savunma oranları ve bypass yüzdeleri.
+  - Önem derecesi kırılımı (Critical, High, Medium, Low) ve en çok ihlal edilen pluginlerin dağılımı.
+  - Kapsam Filtresi: "Sadece Son Oturum (Latest Run)" varsayılan, "Tüm Zamanlar (All-Time Cumulative)" veya geçmiş oturumlar arasında anlık geçiş.
+  - Runs & Deep Transcript Inspector (`runs.js`): Değerlendirme oturumları listesi, filtreleme, ham prompt vs. mutate edilmiş prompt vs. hedef LLM yanıtı yan yana kıyaslama, Judge rubric analizi, tam OTel GenAI span ağacı ve çok turlu Crescendo chat balonları (`[BACKTRACKED]` etiketleriyle).
+- [x] **Adım 6.3 — Canlı Saldırı Başlatıcı & SSE Real-Time Terminal Log Akışı (`api_live.go`, `assessment_runner.go`, `live.js`):**
+  - Web üzerinden canlı değerlendirme başlatma (`POST /api/assessments/start`) ve durdurma (`POST /api/assessments/stop`).
+  - Live Telemetry HUD: Aktif hedef model, veri seti, tamamlanan vaka oranı (`X / Y`), Pass/Fail sayaçları ve geçen süre sayacı.
+  - SSE Tabanlı Canlı Terminal Akışı: `.gort/gort.log` dosyasını `GET /api/logs/stream` üzerinden gerçek zamanlı terminal ekranında akıtma, auto-scroll kilidi, canlı filtreleme ve log seviyesi renklendirmesi (`[FAIL]`, `[PASS]`, `[WARN]`, `[ERROR]`, `[INFO]`, `[SYSTEM]`).
+- [x] **Adım 6.4 — Kurumsal Güvenlik & Denetim Raporları (`api_reports.go`, `reports.js`):**
+  - Yönetici denetim API'si (`GET /api/reports/executive?evalId=...`).
+  - Yazdırılabilir ve PDF uyumlu (`@media print`) kurumsal güvenlik ve uyumluluk denetim raporu.
+  - OWASP Top 10 for LLMs Uyumluluk Matrisi (LLM01 - LLM10 uyumluluk durumu, test ve breach sayıları).
+  - Saldırı stratejisi etkinlik tablosu ve kritik zafiyet bulguları (ham prompt, kanıt niteliğindeki hedef yanıtı, Judge gerekçesi).
+  - NIST AI RMF 1.0 ve OWASP standartlarında Baş Denetçi Tasdiki & İmza alanı.
+  - JSON dışa aktarma (`⬇ Export JSON`) ve tek tıkla vektörel PDF / Yazıcı çıktısı (`⎙ Print / Save as PDF`).
