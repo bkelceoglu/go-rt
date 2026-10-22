@@ -19,6 +19,7 @@ var staticAssets embed.FS
 type Server struct {
 	db      *store.SQLiteStore
 	workDir string
+	manager *AssessmentManager
 	mux     *http.ServeMux
 }
 
@@ -30,6 +31,7 @@ func NewServer(db *store.SQLiteStore, workDir string) *Server {
 	s := &Server{
 		db:      db,
 		workDir: workDir,
+		manager: NewAssessmentManager(db, workDir),
 		mux:     http.NewServeMux(),
 	}
 	s.registerRoutes()
@@ -82,6 +84,13 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/configs/load", s.handleLoadConfig)
 	s.mux.HandleFunc("POST /api/configs/save", s.handleSaveConfig)
 	s.mux.HandleFunc("POST /api/datasets/custom", s.handleSaveCustomDataset)
+
+	s.mux.HandleFunc("POST /api/assessments/start", s.handleStartAssessment)
+	s.mux.HandleFunc("POST /api/assessments/stop", s.handleStopAssessment)
+	s.mux.HandleFunc("GET /api/assessments/status", s.handleGetAssessmentStatus)
+	s.mux.HandleFunc("GET /api/logs/tail", s.handleGetLogsTail)
+	s.mux.HandleFunc("GET /api/logs/stream", s.handleStreamLogs)
+
 	s.registerStaticSubtree()
 }
 

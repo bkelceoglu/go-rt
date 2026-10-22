@@ -84,3 +84,47 @@ export async function fetchResultDetail(evalID, resultID) {
   if (!res.ok) throw new Error(`Failed to load result detail ${resultID}`);
   return res.json();
 }
+
+export async function startAssessment({ configFile = "", dataset = "", rawYaml = "" }) {
+  const res = await fetch("/api/assessments/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ configFile, dataset, rawYaml }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to start assessment");
+  return data;
+}
+
+export async function stopAssessment() {
+  const res = await fetch("/api/assessments/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to stop assessment");
+  return data;
+}
+
+export async function fetchAssessmentStatus() {
+  const res = await fetch("/api/assessments/status");
+  if (!res.ok) throw new Error("Failed to fetch assessment status");
+  return res.json();
+}
+
+export async function fetchLogTail(lines = 100) {
+  const res = await fetch(`/api/logs/tail?lines=${lines}`);
+  if (!res.ok) throw new Error("Failed to fetch log tail");
+  return res.json();
+}
+
+export function streamAssessmentLogs(onMessage, onError) {
+  const es = new EventSource("/api/logs/stream");
+  es.onmessage = (event) => {
+    if (onMessage) onMessage(event.data);
+  };
+  es.onerror = (err) => {
+    if (onError) onError(err);
+  };
+  return es;
+}

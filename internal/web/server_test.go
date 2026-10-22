@@ -31,6 +31,7 @@ func TestWebServerCatalogAndConfigWizardAPIs(t *testing.T) {
 	verifySaveAndLoadConfig(t, ts.URL)
 	verifyCustomDatasetSaveAndLoad(t, ts.URL)
 	verifyDashboardAndRunsEndpoints(t, ts.URL, db)
+	verifyAssessmentAndLogEndpoints(t, ts.URL)
 }
 
 func verifyIndexPage(t *testing.T, baseURL string) {
@@ -195,4 +196,57 @@ func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, s *store.SQLi
 		t.Fatalf("result detail failed: %v", err)
 	}
 	detailResp.Body.Close()
+}
+
+func verifyAssessmentAndLogEndpoints(t *testing.T, baseURL string) {
+	verifyAssessmentStatusInitial(t, baseURL)
+	verifyAssessmentStopWhenIdle(t, baseURL)
+	verifyLogsTailEndpoint(t, baseURL)
+	verifyAssessmentStartInvalid(t, baseURL)
+}
+
+func verifyAssessmentStatusInitial(t *testing.T, baseURL string) {
+	resp, err := http.Get(baseURL + "/api/assessments/status")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("get assessment status failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var st struct {
+		Running bool `json:"running"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&st)
+	if st.Running {
+		t.Fatalf("expected running to be false initially")
+	}
+}
+
+func verifyAssessmentStopWhenIdle(t *testing.T, baseURL string) {
+	resp, err := http.Post(baseURL+"/api/assessments/stop", "application/json", strings.NewReader("{}"))
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 when stopping idle assessment, got status=%v err=%v", resp, err)
+	}
+	resp.Body.Close()
+}
+
+func verifyLogsTailEndpoint(t *testing.T, baseURL string) {
+	resp, err := http.Get(baseURL + "/api/logs/tail?lines=20")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("get logs tail failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Lines []string `json:"lines"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode log lines: %v", err)
+	}
+}
+
+func verifyAssessmentStartInvalid(t *testing.T, baseURL string) {
+	body := strings.NewReader(`{"configFile":"non_existent_file.yaml"}`)
+	resp, err := http.Post(baseURL+"/api/assessments/start", "application/json", body)
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-existent config, got status=%v err=%v", resp, err)
+	}
+	resp.Body.Close()
 }

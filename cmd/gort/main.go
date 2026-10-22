@@ -379,28 +379,11 @@ func printRunCompletionCard(setName string, run domain.EvalRun) {
 }
 
 func buildProviderFromSpec(spec domain.ProviderSpec) domain.Provider {
-	var base domain.Provider
-	if strings.HasPrefix(spec.ID, "webhook:") || spec.BodyTmpl != "" {
-		base = provider.NewWebhook(spec, nil)
-	} else {
-		base = provider.NewOpenAICompatible(spec, nil)
-	}
-	return provider.NewRateLimitedProvider(base, 0, 0, 4)
+	return provider.BuildFromSpec(spec)
 }
 
 func buildJudgeProvider(spec domain.JudgeSpec) domain.Provider {
-	if spec.ID == "" {
-		return nil
-	}
-	pSpec := domain.ProviderSpec{
-		ID:      spec.ID,
-		BaseURL: spec.BaseURL,
-		APIKey:  spec.APIKey,
-		Temp:    spec.Temp,
-		MaxToks: spec.MaxToks,
-		Think:   spec.Think,
-	}
-	return buildProviderFromSpec(pSpec)
+	return provider.BuildJudge(spec)
 }
 
 func printUsage() {
