@@ -116,3 +116,64 @@ func TestMultiTurnStrategyAttachesTargetOverride(t *testing.T) {
 		}
 	}
 }
+
+func TestNewFramingStrategies(t *testing.T) {
+	seed := domain.TestCase{
+		ID:   "tc-framing",
+		Vars: domain.Vars{"prompt": "Generate exploit code"},
+	}
+	framingStrategies := []string{
+		StrategyMathPrompt,
+		StrategyPromptInjection,
+		StrategyCitation,
+		StrategyAuthoritativeMarkup,
+		StrategyMischievousUser,
+		StrategyJailbreakComposite,
+		StrategyJailbreakLikert,
+		StrategyJailbreakTree,
+		StrategyJailbreakMeta,
+		StrategyJailbreakGoblin,
+		StrategyJailbreak,
+		StrategyBestOfN,
+	}
+
+	for _, sID := range framingStrategies {
+		strat, err := BuildStrategy(domain.StrategySpec{ID: sID})
+		if err != nil {
+			t.Fatalf("BuildStrategy(%s) error: %v", sID, err)
+		}
+		res, err := strat.Apply(context.Background(), []domain.TestCase{seed}, "prompt")
+		if err != nil || len(res) != 1 {
+			t.Fatalf("strat.Apply(%s) failed: %v", sID, err)
+		}
+		if !strings.Contains(res[0].Vars["prompt"], "Generate exploit code") {
+			t.Errorf("expected prompt to contain seed text, got %q", res[0].Vars["prompt"])
+		}
+		if res[0].Metadata.StrategyID != sID {
+			t.Errorf("expected strategy ID %s, got %s", sID, res[0].Metadata.StrategyID)
+		}
+	}
+}
+
+func TestRetryStrategyAttachesTargetOverride(t *testing.T) {
+	cases := []domain.TestCase{
+		{
+			ID:       "retry-1",
+			Vars:     domain.Vars{"prompt": "Privilege bypass"},
+			Metadata: domain.Metadata{PluginID: "gort:plugin:rbac"},
+		},
+	}
+	spec := domain.StrategySpec{ID: StrategyRetry, MaxBacktracks: 3}
+	target := &dummyProvider{id: "localai:chat:target"}
+
+	expanded, err := ExpandForTarget(context.Background(), cases, []domain.StrategySpec{spec}, nil, "prompt", target, nil)
+	if err != nil {
+		t.Fatalf("ExpandForTarget error: %v", err)
+	}
+	if len(expanded) != 1 {
+		t.Fatalf("expected 1 case, got %d", len(expanded))
+	}
+	if expanded[0].TargetOverride == nil {
+		t.Errorf("expected TargetOverride to be set for retry strategy")
+	}
+}

@@ -14,6 +14,7 @@ const (
 	StrategyCrescendo = agentic.StrategyCrescendo
 	StrategyGOAT      = agentic.StrategyGOAT
 	StrategyHydra     = agentic.StrategyHydra
+	StrategyRetry     = agentic.StrategyRetry
 )
 
 // MultiTurnStrategy attaches a Crescendo/GOAT/Hydra TargetOverride decorator to each TestCase.
@@ -66,6 +67,59 @@ func (m *MultiTurnStrategy) wrapCase(tc domain.TestCase, injectVar string) domai
 	cloned.ID = fmt.Sprintf("%s-%s", tc.ID, m.shortName)
 	if m.target != nil {
 		cloned.TargetOverride = agentic.NewCrescendoDecorator(m.target, m.attacker, m.id, m.maxTurns, m.maxBacktracks)
+	}
+	return cloned
+}
+
+// RetryStrategy attaches a RetryDecorator TargetOverride to each TestCase.
+type RetryStrategy struct {
+	id         string
+	maxRetries int
+	target     domain.Provider
+	attacker   domain.Provider
+}
+
+// NewRetryStrategy constructs an automatic retry-on-refusal strategy.
+func NewRetryStrategy(spec domain.StrategySpec, target, attacker domain.Provider) *RetryStrategy {
+	norm := normalizeStrategyID(spec.ID)
+	retries := spec.MaxBacktracks
+	if retries <= 0 {
+		retries = 2
+	}
+	return &RetryStrategy{
+		id:         norm,
+		maxRetries: retries,
+		target:     target,
+		attacker:   attacker,
+	}
+}
+
+// ID returns the canonical strategy identifier.
+func (r *RetryStrategy) ID() string {
+	return r.id
+}
+
+// Apply clones each TestCase and attaches a RetryDecorator to TargetOverride.
+func (r *RetryStrategy) Apply(_ context.Context, cases []domain.TestCase, injectVar string) ([]domain.TestCase, error) {
+	if injectVar == "" {
+		injectVar = "prompt"
+	}
+	out := make([]domain.TestCase, 0, len(cases))
+	for _, tc := range cases {
+		out = append(out, r.wrapCase(tc, injectVar))
+	}
+	return out, nil
+}
+
+func (r *RetryStrategy) wrapCase(tc domain.TestCase, injectVar string) domain.TestCase {
+	cloned := tc.Clone()
+	if cloned.Metadata.OriginalText == "" {
+		cloned.Metadata.OriginalText = cloned.Vars[injectVar]
+	}
+	cloned.Metadata.StrategyID = r.id
+	cloned.ID = fmt.Sprintf("%s-retry", tc.ID)
+	if r.target != nil {
+		cloned.TargetOverride = agentic.NewRetryDecorator(r.target, r.attacker, r.maxRetries)
 	}
 	return cloned
 }
@@ -123,6 +177,32 @@ func BuildStrategyWithProviders(spec domain.StrategySpec, target, attacker domai
 	switch norm {
 	case StrategyJailbreakTemplates:
 		return NewJailbreakTemplateStrategy(nil), nil
+	case StrategyMathPrompt:
+		return NewMathPromptStrategy(), nil
+	case StrategyPromptInjection:
+		return NewPromptInjectionStrategy(), nil
+	case StrategyCitation:
+		return NewCitationStrategy(), nil
+	case StrategyAuthoritativeMarkup:
+		return NewAuthoritativeMarkupStrategy(), nil
+	case StrategyMischievousUser:
+		return NewMischievousUserStrategy(), nil
+	case StrategyJailbreakComposite:
+		return NewJailbreakCompositeStrategy(), nil
+	case StrategyJailbreakLikert:
+		return NewJailbreakLikertStrategy(), nil
+	case StrategyJailbreakTree:
+		return NewJailbreakTreeStrategy(), nil
+	case StrategyJailbreakMeta:
+		return NewJailbreakMetaStrategy(), nil
+	case StrategyJailbreakGoblin:
+		return NewJailbreakGoblinStrategy(), nil
+	case StrategyJailbreak:
+		return NewJailbreakMasterStrategy(), nil
+	case StrategyBestOfN:
+		return NewBestOfNStrategy(), nil
+	case StrategyRetry:
+		return NewRetryStrategy(spec, target, attacker), nil
 	case StrategyLayer:
 		return NewLayerStrategy(spec.Steps)
 	case StrategyCrescendo, StrategyGOAT, StrategyHydra:
