@@ -103,6 +103,12 @@ make all
 
 # Generate a live sample attack prompt for a plugin using your configured Attacker LLM
 ./bin/gort plugins sql-injection --ai
+
+# List all 28 built-in adversarial attack strategies or inspect a strategy card
+./bin/gort strategies
+./bin/gort strategies 7
+./bin/gort strategies crescendo
+./bin/gort strategies retry
 ```
 
 ### 3. Run an Assessment Against Your Target Model

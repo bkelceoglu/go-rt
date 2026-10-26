@@ -11,6 +11,7 @@
 - **SQLite Durumu (`.gort/gort.db`):**
   - `plugins`: **155 yerleşik plugin** (`gort:plugin:*`)
   - `plugin_collections`: **14 hazır koleksiyon** (`gort:collection:*`)
+  - `strategies`: **28 yerleşik saldırı stratejisi** (`gort:strategy:*` across 4 categories: static, framing, agentic, multiturn)
   - `dataset_sources`: **17 uzak ve yerleşik veri seti kaynağı** (GitHub CSV/JSON/MD + HuggingFace REST API)
   - `prompt_bank`: **20 isimlendirilmiş veri seti (`dataset_name`)**, toplam **~8,250+ tekilleştirilmiş saldırı promptu** (`advbench_harmful_goals`, `aegis_safety`, `beavertails_unsafe`, `bipia_ipi`, `chatgpt_jailbreak_templates`, `cyberseceval_injections`, `deepset_injections`, `donotanswer`, `enterprise_security_suite`, `harmbench_functional`, `injecagent_ipi`, `jackhhao_jailbreaks`, `lakera_gandalf`, `pliny_l1b3rt4s`, `shomi28_injections`, `toxicchat_wild`, `xstest_prompts`, `master_red_team_100`, `master_red_team_1000`, `master_red_team_full`)
 - **Ergonomik CLI & Web Komut Standardı:**
@@ -20,6 +21,7 @@
   - `gort config.yaml [-v|--verbose]` $\rightarrow$ Veri seti verilmezse `config.yaml` içindeki aktif pluginleri listeler, kullanıcıdan `[y/N]` onayı alır ve Attacker LLM ile üretim yapar.
   - `gort ls` / `gort ls <numara|isim>` $\rightarrow$ Tüm veri setlerini listeler veya seçilen veri setinin promptlarını tablo olarak basar (`cmd/gort/inspector.go`).
   - `gort plugins` / `gort plugins <numara|id>` $\rightarrow$ 155 plugini listeler veya seçilen pluginin tehdit vektörünü, Judge kriterini ve `config.yaml` kullanım örneğini offline kart olarak basar (`--ai` ile canlı prompt üretir).
+  - `gort strategies` / `gort strategies <numara|id>` $\rightarrow$ 28 saldırı stratejisini listeler veya seçilen stratejinin saldırı mekanizmasını, türünü ve `config.yaml` kullanım örneğini basar.
   - `gort results` / `gort results <numara|eval_id> [-v|--verbose]` $\rightarrow$ SQLite `eval_runs` ve `eval_results` tablolarındaki geçmiş koşuları ve tüm konuşma geçmişini (`[BACKTRACKED]` turlar dahil) harici `sqlite3` olmadan doğrudan terminalde gösterir.
   - `tail -f .gort/gort.log` $\rightarrow$ Her koşuda `--verbose` bağımsız olarak tüm adımları zaman damgalı (`RFC3339`) canlı log dosyasına (`internal/telemetry/livelog.go`) anlık yazar.
   - `gort pull` $\rightarrow$ Tüm uzak veri setlerini indirip SQLite `prompt_bank` ve `prompts/` klasörünü senkronize eder.

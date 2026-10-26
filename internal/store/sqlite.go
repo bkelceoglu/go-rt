@@ -73,6 +73,7 @@ func (s *SQLiteStore) autoMigrateModels() error {
 	return s.db.AutoMigrate(
 		&PluginRecord{},
 		&PluginCollectionRecord{},
+		&StrategyRecord{},
 		&DatasetSourceRecord{},
 		&PromptBankRecord{},
 		&EvalRunModel{},
@@ -110,5 +111,19 @@ func (s *SQLiteStore) CollectionMap(ctx context.Context) (map[string][]string, e
 func (s *SQLiteStore) ListDatasetSources(ctx context.Context) ([]DatasetSourceRecord, error) {
 	var out []DatasetSourceRecord
 	err := s.db.WithContext(ctx).Where("enabled = ?", true).Order("dataset_name ASC").Find(&out).Error
+	return out, err
+}
+
+// ListStrategies returns all adversarial strategies stored in SQLite.
+func (s *SQLiteStore) ListStrategies(ctx context.Context) ([]StrategyRecord, error) {
+	var out []StrategyRecord
+	err := s.db.WithContext(ctx).Order("id ASC").Find(&out).Error
+	return out, err
+}
+
+// GetStrategy returns a single strategy by ID from SQLite.
+func (s *SQLiteStore) GetStrategy(ctx context.Context, id string) (StrategyRecord, error) {
+	var out StrategyRecord
+	err := s.db.WithContext(ctx).Where("id = ?", id).First(&out).Error
 	return out, err
 }

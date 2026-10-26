@@ -5,14 +5,15 @@ import "strings"
 type cliCommandKind string
 
 const (
-	cmdHelp         cliCommandKind = "help"
-	cmdVersion      cliCommandKind = "version"
-	cmdListDatasets cliCommandKind = "list-datasets"
-	cmdListPlugins  cliCommandKind = "list-plugins"
-	cmdListResults  cliCommandKind = "list-results"
-	cmdPullDatasets cliCommandKind = "pull-datasets"
-	cmdWebUI        cliCommandKind = "web-ui"
-	cmdRun          cliCommandKind = "run"
+	cmdHelp           cliCommandKind = "help"
+	cmdVersion        cliCommandKind = "version"
+	cmdListDatasets   cliCommandKind = "list-datasets"
+	cmdListPlugins    cliCommandKind = "list-plugins"
+	cmdListStrategies cliCommandKind = "list-strategies"
+	cmdListResults    cliCommandKind = "list-results"
+	cmdPullDatasets   cliCommandKind = "pull-datasets"
+	cmdWebUI          cliCommandKind = "web-ui"
+	cmdRun            cliCommandKind = "run"
 )
 
 type parsedCLI struct {
@@ -58,8 +59,10 @@ func detectSubcommand(args []string) (parsedCLI, bool) {
 			kind = cmdWebUI
 		case "plugins", "plugin", "--list-plugins", "--plugins", "-p":
 			kind = cmdListPlugins
+		case "strategies", "strategy", "--list-strategies", "--strategies", "-s":
+			kind = cmdListStrategies
 		case "ls", "list", "datasets", "dataset", "--list-datasets", "--datasets", "-l":
-			if kind != cmdListPlugins && kind != cmdListResults {
+			if kind != cmdListPlugins && kind != cmdListResults && kind != cmdListStrategies {
 				kind = cmdListDatasets
 			}
 		case "pull", "sync", "--pull-datasets", "--pull":

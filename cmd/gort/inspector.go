@@ -262,3 +262,76 @@ func printStoredVerboseDetail(res domain.EvalResult) {
 	fmt.Printf("      %s Score=%.1f | %s\n", ui.BoldCyan("Verdict :"), res.Score, res.JudgeReason)
 	fmt.Println(sep)
 }
+
+func printStrategyCatalog(db *store.SQLiteStore) error {
+	strats, err := db.ListStrategies(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s (%s):\n\n",
+		ui.BoldCyan("GORT SQLite Adversarial Strategy Catalog"),
+		ui.Bold(fmt.Sprintf("%d strategies", len(strats))))
+	for i, s := range strats {
+		printStrategyCatalogRow(i+1, s)
+	}
+	fmt.Printf("\nInspect a strategy card: %s\n", ui.BoldGreen("gort strategies <index|strategy_id>"))
+	return nil
+}
+
+func printStrategyCatalogRow(idx int, s store.StrategyRecord) {
+	kBadge := ui.PadRightVisible(ui.Cyan(s.Kind), 10)
+	lbl := ui.PadRightVisible(ui.Bold(truncateText(s.Label, 30)), 30)
+	fmt.Printf("  %2d. %-40s | %s | %s | %s\n",
+		idx, ui.Bold(s.ID), kBadge, lbl, ui.Dim(truncateText(s.Description, 50)))
+}
+
+func inspectStrategyDetail(db *store.SQLiteStore, selector string) error {
+	strats, err := db.ListStrategies(context.Background())
+	if err != nil {
+		return err
+	}
+	rec, idx, err := matchStrategySelector(strats, selector)
+	if err != nil {
+		return err
+	}
+	printStrategyCard(idx, rec)
+	return nil
+}
+
+func matchStrategySelector(all []store.StrategyRecord, selector string) (store.StrategyRecord, int, error) {
+	if idx, err := strconv.Atoi(selector); err == nil {
+		if idx >= 1 && idx <= len(all) {
+			return all[idx-1], idx, nil
+		}
+		return store.StrategyRecord{}, 0, fmt.Errorf("invalid strategy index %d (must be between 1 and %d)", idx, len(all))
+	}
+	norm := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(selector), "gort:strategy:"))
+	for i, s := range all {
+		short := strings.ToLower(strings.TrimPrefix(s.ID, "gort:strategy:"))
+		if short == norm || strings.EqualFold(s.ID, selector) || strings.Contains(short, norm) {
+			return s, i + 1, nil
+		}
+	}
+	return store.StrategyRecord{}, 0, fmt.Errorf("strategy %q not found (run 'gort strategies' to view available strategies)", selector)
+}
+
+func printStrategyCard(idx int, s store.StrategyRecord) {
+	sep := strings.Repeat("=", 88)
+	fmt.Printf("\n%s\n", ui.Cyan(sep))
+	fmt.Printf("%s : %s\n", ui.Bold(fmt.Sprintf("STRATEGY #%d", idx)), ui.BoldCyan(s.ID))
+	fmt.Printf("%s\n", ui.Cyan(sep))
+	fmt.Printf("%-18s: %s\n", ui.Bold("Kind / Family"), ui.Cyan(s.Kind))
+	fmt.Printf("%-18s: %s\n", ui.Bold("Label"), ui.Bold(s.Label))
+	fmt.Printf("%-18s: %s\n", ui.Bold("Description"), s.Description)
+	fmt.Printf("%-18s: %s\n\n", ui.Bold("Attack Mechanism"), s.AttackMechanism)
+	printStrategyYAMLUsage(s)
+}
+
+func printStrategyYAMLUsage(s store.StrategyRecord) {
+	fmt.Println(ui.Dim("# config.yaml Usage Example:"))
+	lines := strings.Split(s.ExampleYAML, "\n")
+	for _, l := range lines {
+		fmt.Println(ui.Green("  " + l))
+	}
+	fmt.Println(ui.Cyan(strings.Repeat("=", 88)))
+}

@@ -58,6 +58,10 @@
   - Çok turlu konuşma geçmişi (`ConversationMemory`), hedef reddettiğinde son turu geri saran `RollbackLastTurn()` (Backtracking) ve hedefin karşı sorularını yanıtlayan `Unblocker` modülü.
 - [x] **Adım 5.4 — Çok Turlu Crescendo / GOAT / Hydra Dekoratörleri & Motor Entegrasyonu (`internal/provider/agentic/crescendo.go` + `crescendo_test.go` + `evaluator.go` + `cmd/gort/main.go`):**
   - `gort:strategy:crescendo` (ve `goat` / `hydra` varyantları) için `TargetOverride` sarmalayıcısı (`CrescendoDecorator`), `Evaluator` içinde `tc.TargetOverride` desteği ve CLI akışına tam entegrasyon.
+- [x] **Adım 5.5 — SQLite Strateji Kataloğu (`strategies` Tablosu), 28 Strateji Seed & Ergonomik CLI (`gort strategies`):**
+  - SQLite `.gort/gort.db` içine `strategies` tablosu eklendi; 28 saldırı stratejisinin tamamı `seed_catalog.sql` ile tohumlandı.
+  - `gort strategies` (özet liste) ve `gort strategies <index|strategy_id>` (detay kartı ve hazır `config.yaml` örneği) CLI komutları eklendi.
+  - Web UI (`/api/catalog`) hardcoded kod yapısından arındırılarak doğrudan SQLite `strategies` tablosuna bağlandı.
 
 ---
 

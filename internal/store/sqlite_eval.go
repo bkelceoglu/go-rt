@@ -12,6 +12,7 @@ import (
 // SaveEvalRun inserts or updates an assessment session run in SQLite via GORM.
 func (s *SQLiteStore) SaveEvalRun(ctx context.Context, run domain.EvalRun) error {
 	model := toEvalRunModel(run)
+	// i still love this gorm CRUD ops. lovely.
 	err := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{UpdateAll: true}).
 		Create(&model).Error

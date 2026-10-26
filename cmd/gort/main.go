@@ -68,11 +68,13 @@ func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
 	}
 	plugins, _ := db.ListPlugins(ctx)
 	cols, _ := db.CollectionMap(ctx)
+	strats, _ := db.ListStrategies(ctx)
 	sets, _ := db.ListDatasets(ctx)
-	fmt.Printf("%s SQLite DB Ready (%s): %s | %s | %s (%s total prompts)\n",
+	fmt.Printf("%s SQLite DB Ready (%s): %s | %s | %s | %s (%s total prompts)\n",
 		ui.PrefixGort(), ui.Dim(defaultSQLitePath),
 		ui.Bold(fmt.Sprintf("%d plugins", len(plugins))),
 		ui.Bold(fmt.Sprintf("%d collections", len(cols))),
+		ui.Bold(fmt.Sprintf("%d strategies", len(strats))),
 		ui.Bold(fmt.Sprintf("%d datasets", len(sets))),
 		ui.BoldGreen(fmt.Sprintf("%d", sumPromptCounts(sets))))
 	return nil
@@ -98,6 +100,11 @@ func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader
 			return inspectPluginDetail(db, parsed.TargetArg, parsed.AIGenerate, parsed.ConfigPath)
 		}
 		return printPluginCatalog(db)
+	case cmdListStrategies:
+		if parsed.TargetArg != "" {
+			return inspectStrategyDetail(db, parsed.TargetArg)
+		}
+		return printStrategyCatalog(db)
 	case cmdListResults:
 		if parsed.TargetArg != "" {
 			return inspectEvalRunResults(db, parsed.TargetArg, parsed.Verbose)
@@ -394,6 +401,7 @@ func printUsage() {
 	fmt.Println("  gort config.yaml [-v|--verbose]                   # Prompt [y/N] confirmation & synthesize via Attacker LLM")
 	fmt.Println("  gort ls [index|dataset_name]                      # List all prompt sets or inspect prompts as a table")
 	fmt.Println("  gort plugins [index|plugin_id] [--ai]             # List all 155 plugins or inspect a plugin usage card")
+	fmt.Println("  gort strategies [index|strategy_id]               # List all 28 attack strategies or inspect a strategy card")
 	fmt.Println("  gort results [index|eval_id] [-v|--verbose]       # List stored runs or inspect full prompt/output/turns")
 	fmt.Println("  gort pull | sync | --pull-datasets                # Pull and sync all remote datasets into SQLite & prompts/")
 }

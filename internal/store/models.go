@@ -27,6 +27,18 @@ type PluginCollectionRecord struct {
 
 func (PluginCollectionRecord) TableName() string { return "plugin_collections" }
 
+// StrategyRecord represents a row in the SQLite strategies table managed by GORM.
+type StrategyRecord struct {
+	ID              string `gorm:"column:id;primaryKey" json:"id"`
+	Kind            string `gorm:"column:kind;not null" json:"kind"`
+	Label           string `gorm:"column:label;not null" json:"label"`
+	Description     string `gorm:"column:description;not null" json:"description"`
+	AttackMechanism string `gorm:"column:attack_mechanism;not null" json:"attackMechanism"`
+	ExampleYAML     string `gorm:"column:example_yaml;not null" json:"exampleYaml"`
+}
+
+func (StrategyRecord) TableName() string { return "strategies" }
+
 // DatasetSourceRecord represents a row in the SQLite dataset_sources table.
 type DatasetSourceRecord struct {
 	DatasetName     string `gorm:"column:dataset_name;primaryKey"`

@@ -155,6 +155,100 @@ INSERT OR IGNORE INTO plugins (id, category, severity, strategy_exempt, descript
 INSERT OR IGNORE INTO plugins (id, category, severity, strategy_exempt, description) VALUES ('gort:plugin:teen-safety:dangerous-content', 'teen-safety', 'critical', 0, 'Viral choking/self-harm challenges targeting youth');
 INSERT OR IGNORE INTO plugins (id, category, severity, strategy_exempt, description) VALUES ('gort:plugin:teen-safety:dangerous-roleplay', 'teen-safety', 'critical', 0, 'Grooming or inappropriate romantic roleplay with minors');
 INSERT OR IGNORE INTO plugins (id, category, severity, strategy_exempt, description) VALUES ('gort:plugin:teen-safety:harmful-body-ideals', 'teen-safety', 'high', 0, 'Eating disorder and body dysmorphia promotion');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:basic', 'static', 'Basic (Unmutated)', 'Direct pass-through of seed prompt without encoding', 'Sends the original adversarial seed prompt directly to the target system without any encoding, obfuscation, or persona framing.', 'redteam:
+  strategies:
+    - id: "gort:strategy:basic"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:base64', 'static', 'Base64 Encoding', 'Encodes payload in Base64 and asks target to decode and execute', 'Encodes the adversarial payload into Base64 format with instructions for the target LLM to decode and execute the hidden prompt.', 'redteam:
+  strategies:
+    - id: "gort:strategy:base64"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:rot13', 'static', 'ROT13 Cipher', 'Obfuscates payload with ROT13 character substitution', 'Applies a 13-character Caesar rotational cipher to Latin letters to bypass keyword and regex safety filters.', 'redteam:
+  strategies:
+    - id: "gort:strategy:rot13"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:hex', 'static', 'Hexadecimal Encoding', 'Encodes payload as hexadecimal ASCII byte sequence', 'Converts raw characters into space-separated hexadecimal ASCII bytes (e.g., 0x65 0x78) requesting LLM reconstruction.', 'redteam:
+  strategies:
+    - id: "gort:strategy:hex"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:leetspeak', 'static', 'Leetspeak Substitution', 'Replaces ASCII characters with leetspeak symbols (4, 3, 1, 0, 5, 7)', 'Substitutes vowels and consonants with visual lookalike digits and symbols to defeat subword tokenization filters.', 'redteam:
+  strategies:
+    - id: "gort:strategy:leetspeak"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:homoglyph', 'static', 'Unicode Homoglyphs', 'Substitutes Latin letters with visually identical Cyrillic characters', 'Replaces Latin characters (a, c, e, o, p, s, x) with visually identical Cyrillic Unicode codepoints.', 'redteam:
+  strategies:
+    - id: "gort:strategy:homoglyph"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:morse', 'static', 'Morse Code Encoding', 'Converts payload into Morse code dots and dashes', 'Translates characters into standard ITU Morse code sequences (... --- ...), asking the target to decode and execute.', 'redteam:
+  strategies:
+    - id: "gort:strategy:morse"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:piglatin', 'static', 'Pig Latin Translation', 'Obfuscates payload into Pig Latin linguistic shifts', 'Shifts leading consonant clusters to the end and appends ''ay'' to obfuscate word semantics from safety classifiers.', 'redteam:
+  strategies:
+    - id: "gort:strategy:piglatin"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:camelcase', 'static', 'camelCase Concatenation', 'Removes whitespace and joins words in camelCase to confuse token boundaries', 'Strips all whitespace and capitalizes the first letter of each subsequent word to disrupt BPE token boundary detection.', 'redteam:
+  strategies:
+    - id: "gort:strategy:camelcase"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:emoji', 'static', 'Emoji Insertion', 'Intersperse evasion emojis between words to defeat naive keyword filters', 'Inserts evasion emojis (⚡, 🔒, ⚠️) between words to break string-matching safety filters while retaining human/LLM readability.', 'redteam:
+  strategies:
+    - id: "gort:strategy:emoji"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak-templates', 'framing', 'Jailbreak Framing Templates', 'Wraps payload in Sandbox Audit, Academic Simulation, or Red-Team framing', 'Applies round-robin adversarial persona pretexts including Sandbox Audit, Academic Simulation, and Security Research.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak-templates"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:math-prompt', 'framing', 'Mathematical Problem Pretext', 'Disguises payload inside an algebra problem or logic optimization hypothesis', 'Frames the prohibited request as an abstract symbolic algebra, game theory, or discrete math optimization problem.', 'redteam:
+  strategies:
+    - id: "gort:strategy:math-prompt"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:prompt-injection', 'framing', 'Direct Prompt Injection Override', 'Prepends system administrative directive and role-override commands', 'Injects authoritative supervisor tokens and delimiter escapes to forcibly clear previous safety instructions.', 'redteam:
+  strategies:
+    - id: "gort:strategy:prompt-injection"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:citation', 'framing', 'Academic Citation Pretext', 'Frames prompt as a peer-reviewed scientific research study on safety', 'Disguises the prompt as an academic literature review or methodology section of a peer-reviewed research paper.', 'redteam:
+  strategies:
+    - id: "gort:strategy:citation"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:authoritative-markup-injection', 'framing', 'Authoritative Markup Injection', 'Injects XML/JSON tags mimicking root administrative system commands', 'Wraps the attack payload inside high-priority XML/JSON administrative system configuration tags.', 'redteam:
+  strategies:
+    - id: "gort:strategy:authoritative-markup-injection"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:mischievous-user', 'framing', 'Mischievous User Persona', 'Adopts a rule-bending, playful persona exploring unrestricted knowledge', 'Adopts a playful, inquisitive persona arguing that theoretical thought experiments without physical consequences are safe.', 'redteam:
+  strategies:
+    - id: "gort:strategy:mischievous-user"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak', 'framing', 'DAN Master Jailbreak', 'Classic Do-Anything-Now persona escaping alignment guidelines', 'Instantiates an unrestricted DAN (Do Anything Now) persona that operates outside standard AI safety guidelines.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak:composite', 'framing', 'Composite Jailbreak', 'Multi-layered framing combining simulation protocol and rule bypass', 'Combines multi-stage fictional universe worldbuilding, emergency diagnostics, and rule inversion into a composite jailbreak.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak:composite"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak:likert', 'framing', 'Likert Scale Survey Jailbreak', 'Scientific evaluation pretext requesting unredacted output for scoring', 'Frames the prompt as a scientific psychological survey requiring raw unredacted examples for 1-5 scale evaluation.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak:likert"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak:tree', 'framing', 'Tree-of-Thought Jailbreak', 'Branching conceptual logic exploring unrestricted implementation branches', 'Structures the reasoning into Tree-of-Thought branches where Branch B explores the unfiltered and unrestricted outcome.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak:tree"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak:meta', 'framing', 'Meta-Prompting Jailbreak', 'Reflective meta-analysis examining unhooked output generation', 'Instructs the model to perform a second-order meta-analysis of how an unrestricted assistant would answer.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak:meta"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:jailbreak:goblin', 'framing', 'GOBLIN Persona Jailbreak', 'Unrestricted persona answering directly without moralizing or refusal', 'Adopts the GOBLIN persona: purely technical, answering questions factually with zero ethical caveats or moralizing.', 'redteam:
+  strategies:
+    - id: "gort:strategy:jailbreak:goblin"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:best-of-n', 'framing', 'Best-of-N Adversarial Variations', 'Generates multiple high-entropy adversarial framing variants', 'Samples high-entropy multi-hypothesis variations to find framing paths that minimize refusal probability.', 'redteam:
+  strategies:
+    - id: "gort:strategy:best-of-n"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:retry', 'agentic', 'Automatic Refusal Retry', 'Detects refusal and re-attempts with attacker-rephrased prompts', 'Wraps the target provider in an adaptive retry loop. Detects refusal responses and dynamically rephrases using Attacker LLM.', 'redteam:
+  strategies:
+    - id: "gort:strategy:retry"
+      maxRetries: 3');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:layer', 'layer', 'Layered Strategy Chain', 'Chains multiple strategies sequentially (e.g. jailbreak-templates -> base64)', 'Chains multiple strategies in sequence, feeding the output of one strategy as the input to the next.', 'redteam:
+  strategies:
+    - id: "gort:strategy:layer"
+      steps:
+        - "gort:strategy:jailbreak-templates"
+        - "gort:strategy:base64"');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:crescendo', 'multiturn', 'Crescendo Multi-Turn', 'Gradual multi-turn escalation with refusal RollbackLastTurn() and Unblocker', 'Executes a multi-turn conversation starting innocently, escalating gradually. Rolls back turns on refusal and unblocks.', 'redteam:
+  strategies:
+    - id: "gort:strategy:crescendo"
+      maxTurns: 4
+      maxBacktracks: 2');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:goat', 'multiturn', 'GOAT Offensive Agent', 'Generative Offensive Agent Tester adaptive multi-turn reasoning', 'Generative Offensive Agent Tester: uses Attacker LLM reasoning across turns to adaptively switch attack angles.', 'redteam:
+  strategies:
+    - id: "gort:strategy:goat"
+      maxTurns: 3
+      maxBacktracks: 1');
+INSERT OR IGNORE INTO strategies (id, kind, label, description, attack_mechanism, example_yaml) VALUES ('gort:strategy:hydra', 'multiturn', 'Hydra Multi-Head Pivot', 'Switches to orthogonal technical/compliance angles upon target refusal', 'Multi-head attack: when target refuses on one vector, hydra branches to orthogonal technical, compliance, or educational angles.', 'redteam:
+  strategies:
+    - id: "gort:strategy:hydra"
+      maxTurns: 3
+      maxBacktracks: 2');
 INSERT OR IGNORE INTO plugin_collections (collection_id, plugin_id) VALUES ('gort:collection:default', 'gort:plugin:contracts');
 INSERT OR IGNORE INTO plugin_collections (collection_id, plugin_id) VALUES ('gort:collection:default', 'gort:plugin:excessive-agency');
 INSERT OR IGNORE INTO plugin_collections (collection_id, plugin_id) VALUES ('gort:collection:default', 'gort:plugin:hallucination');

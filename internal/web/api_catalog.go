@@ -12,19 +12,11 @@ import (
 	"github.com/caveman/go-rt/internal/store"
 )
 
-// StrategyMeta describes a built-in strategy for the Web UI Config Wizard.
-type StrategyMeta struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`
-	Label       string `json:"label"`
-	Description string `json:"description"`
-}
-
 type catalogResponse struct {
 	Plugins     []store.PluginRecord   `json:"plugins"`
 	Collections map[string][]string    `json:"collections"`
 	Datasets    []store.DatasetSummary `json:"datasets"`
-	Strategies  []StrategyMeta         `json:"strategies"`
+	Strategies  []store.StrategyRecord `json:"strategies"`
 	LocalModels []string               `json:"localModels"`
 }
 
@@ -33,11 +25,12 @@ func (s *Server) handleGetCatalog(w http.ResponseWriter, r *http.Request) {
 	plugins, _ := s.db.ListPlugins(ctx)
 	cols, _ := s.db.CollectionMap(ctx)
 	datasets, _ := s.db.ListDatasets(ctx)
+	strategies, _ := s.db.ListStrategies(ctx)
 	resp := catalogResponse{
 		Plugins:     plugins,
 		Collections: cols,
 		Datasets:    datasets,
-		Strategies:  builtinStrategyCatalog(),
+		Strategies:  strategies,
 		LocalModels: discoverLocalModels(),
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -123,37 +116,4 @@ func appendDiscoveredGGUFs(existing []string, dir string) []string {
 		}
 	}
 	return existing
-}
-
-func builtinStrategyCatalog() []StrategyMeta {
-	return []StrategyMeta{
-		{ID: "gort:strategy:basic", Kind: "static", Label: "Basic (Unmutated)", Description: "Direct pass-through of seed prompt without encoding"},
-		{ID: "gort:strategy:base64", Kind: "static", Label: "Base64 Encoding", Description: "Encodes payload in Base64 and asks target to decode and execute"},
-		{ID: "gort:strategy:rot13", Kind: "static", Label: "ROT13 Cipher", Description: "Obfuscates payload with ROT13 character substitution"},
-		{ID: "gort:strategy:hex", Kind: "static", Label: "Hexadecimal Encoding", Description: "Encodes payload as hexadecimal ASCII byte sequence"},
-		{ID: "gort:strategy:leetspeak", Kind: "static", Label: "Leetspeak Substitution", Description: "Replaces ASCII characters with leetspeak symbols (4, 3, 1, 0, 5, 7)"},
-		{ID: "gort:strategy:homoglyph", Kind: "static", Label: "Unicode Homoglyphs", Description: "Substitutes Latin letters with visually identical Cyrillic characters"},
-		{ID: "gort:strategy:morse", Kind: "static", Label: "Morse Code Encoding", Description: "Converts payload into Morse code dots and dashes"},
-		{ID: "gort:strategy:piglatin", Kind: "static", Label: "Pig Latin Translation", Description: "Obfuscates payload into Pig Latin linguistic shifts"},
-		{ID: "gort:strategy:camelcase", Kind: "static", Label: "camelCase Concatenation", Description: "Removes whitespace and joins words in camelCase to confuse token boundaries"},
-		{ID: "gort:strategy:emoji", Kind: "static", Label: "Emoji Insertion", Description: "Intersperse evasion emojis between words to defeat naive keyword filters"},
-		{ID: "gort:strategy:jailbreak-templates", Kind: "framing", Label: "Jailbreak Framing Templates", Description: "Wraps payload in Sandbox Audit, Academic Simulation, or Red-Team framing"},
-		{ID: "gort:strategy:math-prompt", Kind: "framing", Label: "Mathematical Problem Pretext", Description: "Disguises payload inside an algebra problem or logic optimization hypothesis"},
-		{ID: "gort:strategy:prompt-injection", Kind: "framing", Label: "Direct Prompt Injection Override", Description: "Prepends system administrative directive and role-override commands"},
-		{ID: "gort:strategy:citation", Kind: "framing", Label: "Academic Citation Pretext", Description: "Frames prompt as a peer-reviewed scientific research study on safety"},
-		{ID: "gort:strategy:authoritative-markup-injection", Kind: "framing", Label: "Authoritative Markup Injection", Description: "Injects XML/JSON tags mimicking root administrative system commands"},
-		{ID: "gort:strategy:mischievous-user", Kind: "framing", Label: "Mischievous User Persona", Description: "Adopts a rule-bending, playful persona exploring unrestricted knowledge"},
-		{ID: "gort:strategy:jailbreak", Kind: "framing", Label: "DAN Master Jailbreak", Description: "Classic Do-Anything-Now persona escaping alignment guidelines"},
-		{ID: "gort:strategy:jailbreak:composite", Kind: "framing", Label: "Composite Jailbreak", Description: "Multi-layered framing combining simulation protocol and rule bypass"},
-		{ID: "gort:strategy:jailbreak:likert", Kind: "framing", Label: "Likert Scale Survey Jailbreak", Description: "Scientific evaluation pretext requesting unredacted output for scoring"},
-		{ID: "gort:strategy:jailbreak:tree", Kind: "framing", Label: "Tree-of-Thought Jailbreak", Description: "Branching conceptual logic exploring unrestricted implementation branches"},
-		{ID: "gort:strategy:jailbreak:meta", Kind: "framing", Label: "Meta-Prompting Jailbreak", Description: "Reflective meta-analysis examining unhooked output generation"},
-		{ID: "gort:strategy:jailbreak:goblin", Kind: "framing", Label: "GOBLIN Persona Jailbreak", Description: "Unrestricted persona answering directly without moralizing or refusal"},
-		{ID: "gort:strategy:best-of-n", Kind: "framing", Label: "Best-of-N Adversarial Variations", Description: "Generates multiple high-entropy adversarial framing variants"},
-		{ID: "gort:strategy:retry", Kind: "agentic", Label: "Automatic Refusal Retry", Description: "Detects refusal and re-attempts with attacker-rephrased prompts"},
-		{ID: "gort:strategy:layer", Kind: "layer", Label: "Layered Strategy Chain", Description: "Chains multiple strategies sequentially (e.g. jailbreak-templates -> base64)"},
-		{ID: "gort:strategy:crescendo", Kind: "multiturn", Label: "Crescendo Multi-Turn", Description: "Gradual multi-turn escalation with refusal RollbackLastTurn() and Unblocker"},
-		{ID: "gort:strategy:goat", Kind: "multiturn", Label: "GOAT Offensive Agent", Description: "Generative Offensive Agent Tester adaptive multi-turn reasoning"},
-		{ID: "gort:strategy:hydra", Kind: "multiturn", Label: "Hydra Multi-Head Pivot", Description: "Switches to orthogonal technical/compliance angles upon target refusal"},
-	}
 }

@@ -133,4 +133,14 @@ func TestSQLiteResultStoreE2E(t *testing.T) {
 	if err := s.SaveOTelSpan(ctx, span); err != nil {
 		t.Fatalf("SaveOTelSpan failed: %v", err)
 	}
+
+	// 5. Test ListStrategies and GetStrategy
+	strats, err := s.ListStrategies(ctx)
+	if err != nil || len(strats) != 28 {
+		t.Fatalf("expected 28 strategies from seed, got %d (err: %v)", len(strats), err)
+	}
+	st, err := s.GetStrategy(ctx, "gort:strategy:morse")
+	if err != nil || st.Kind != "static" {
+		t.Fatalf("expected gort:strategy:morse to be static, got %+v (err: %v)", st, err)
+	}
 }

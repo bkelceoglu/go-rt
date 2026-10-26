@@ -50,7 +50,19 @@ On first run, GORT automatically creates `.gort/gort.db`, executes GORM `AutoMig
 ./bin/gort plugins sql-injection --ai
 ```
 
-### 2.3. Re-syncing Remote Datasets (`gort pull`)
+### 2.3. Listing & Inspecting Attack Strategies (`gort strategies`)
+```bash
+# 1. List all 28 adversarial strategies across 4 categories (static, framing, agentic, multiturn)
+./bin/gort strategies
+
+# 2. View the detailed strategy card and ready-to-paste YAML snippet by index or ID
+./bin/gort strategies 7
+./bin/gort strategies morse
+./bin/gort strategies crescendo
+./bin/gort strategies retry
+```
+
+### 2.4. Re-syncing Remote Datasets (`gort pull`)
 ```bash
 # Re-download and synchronize all remote datasets into .gort/gort.db and ./prompts/*.csv
 ./bin/gort pull
