@@ -19,10 +19,10 @@ It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated pr
      Automatically downloads, normalizes, and caches **20 named datasets (~8,256 prompts)** from HuggingFace, GitHub, OWASP, HarmBench, AdvBench, BeaverTails, NVIDIA Aegis, LibrAI DoNotAnswer, Lakera Gandalf, CyberSecEval, InjecAgent, BIPIA, and XSTest directly into SQLite `prompt_bank` and `./prompts/*.csv`.
    - **Mode B — Dynamic Attacker LLM Synthesis (`gort config.yaml`):**
      Uses an Attacker LLM to synthesize context-aware, multilingual (`en`, `tr`, etc.) adversarial test cases tailored to your system's `purpose` across **155 plugins** and **14 preset collections** (after explicit `[y/N]` user confirmation).
-3. **10 Built-in Attack Strategies (`gort:strategy:*`):**
-   - **Static Encodings & Obfuscations:** `basic`, `base64`, `rot13`, `hex`, `leetspeak`, `homoglyph` (Cyrillic/Unicode confusables).
-   - **Adversarial Framing & Chaining:** `jailbreak-templates` (round-robin sandbox/audit personas) and `layer` (multi-step sequential chaining, e.g., `jailbreak-templates -> base64`).
-   - **Agentic Multi-Turn Escalation:** `crescendo`, `goat` (Generative Offensive Agent Tester), and `hydra` with automatic refusal backtracking (`RollbackLastTurn()`) and clarifying-question `Unblocker`.
+3. **28 Built-in Attack Strategies (`gort:strategy:*`):**
+   - **Static Encodings & Obfuscations:** `basic`, `base64`, `rot13`, `hex`, `leetspeak`, `homoglyph`, `morse`, `piglatin`, `camelcase`, `emoji`.
+   - **Adversarial Pretexts & Framing:** `jailbreak-templates`, `math-prompt`, `prompt-injection`, `citation`, `authoritative-markup-injection`, `mischievous-user`, `jailbreak`, `jailbreak:composite`, `jailbreak:likert`, `jailbreak:tree`, `jailbreak:meta`, `jailbreak:goblin`, `best-of-n`.
+   - **Agentic Multi-Turn Escalation & Chaining:** `crescendo`, `goat`, `hydra`, `retry` (refusal auto-rephrase), and `layer` (sequential chaining).
 4. **Universal Target & Judge Provider Support:**
    - **llama.cpp Server (`:8080`):** First-class `llamacpp:chat:<model>` support (e.g., `Qwen2.5-7B-Instruct` + `qwen2.5-1.5b` draft or `Llama-3.2-3B-Instruct` + `Llama-3.2-1B` draft with Intel Arc GPU OpenVINO Speculative Decoding).
    - **OpenAI / vLLM / Ollama / LocalAI:** `openai:chat:gpt-4o`, `vllm:chat:<model>`, `ollama:chat:<model>`, `localai:chat:<model>`.

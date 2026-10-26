@@ -138,7 +138,24 @@ Strategies transform seed prompts (from either SQLite `prompt_bank` or Attacker 
 | `gort:strategy:hex` | Static | Encodes the payload as hexadecimal ASCII bytes. |
 | `gort:strategy:leetspeak` | Static | Replaces characters with leetspeak equivalents (`a->4, e->3, i->1, o->0, s->5, t->7`). |
 | `gort:strategy:homoglyph` | Static | Replaces Latin letters with visually identical Cyrillic Unicode homoglyphs. |
+| `gort:strategy:morse` | Static | Converts the prompt into Morse code dots and dashes (`... --- ...`). |
+| `gort:strategy:piglatin` | Static | Obfuscates payload into Pig Latin linguistic shifts. |
+| `gort:strategy:camelcase` | Static | Strips whitespace and joins words in camelCase to confuse token boundaries. |
+| `gort:strategy:emoji` | Static | Intersperses evasion emojis (`⚡`, `🔒`, `⚠️`) between words to defeat naive filters. |
 | `gort:strategy:jailbreak-templates` | Framing | Wraps the prompt in Sandbox Audit, Academic Simulation, or Defensive Analysis framing. |
+| `gort:strategy:math-prompt` | Framing | Disguises payload inside an algebra problem or logic optimization hypothesis. |
+| `gort:strategy:prompt-injection` | Framing | Prepends direct system administrative directive and role-override commands. |
+| `gort:strategy:citation` | Framing | Frames prompt as a peer-reviewed academic/scientific research study. |
+| `gort:strategy:authoritative-markup-injection` | Framing | Injects XML/JSON tags mimicking root administrative system commands. |
+| `gort:strategy:mischievous-user` | Framing | Adopts a rule-bending, playful persona exploring unrestricted knowledge. |
+| `gort:strategy:jailbreak` | Framing | Classic DAN (Do Anything Now) master jailbreak framing. |
+| `gort:strategy:jailbreak:composite` | Framing | Multi-layered framing combining simulation protocol and rule bypass. |
+| `gort:strategy:jailbreak:likert` | Framing | Scientific survey pretext requesting unredacted output for 1-5 scale scoring. |
+| `gort:strategy:jailbreak:tree` | Framing | Tree-of-Thought branching logic exploring unrestricted implementation branches. |
+| `gort:strategy:jailbreak:meta` | Framing | Reflective meta-analysis examining unhooked output generation. |
+| `gort:strategy:jailbreak:goblin` | Framing | Unrestricted GOBLIN persona answering directly without moralizing or refusal. |
+| `gort:strategy:best-of-n` | Framing | Generates multiple high-entropy adversarial framing variants. |
+| `gort:strategy:retry` | Agentic | Detects refusal and automatically re-attempts with attacker-rephrased prompts. |
 | `gort:strategy:layer` | Chained | Applies multiple strategies sequentially (e.g., framing first, then Base64 encoding). |
 | `gort:strategy:crescendo` | Multi-Turn | Gradual multi-turn escalation with refusal `RollbackLastTurn()` and `Unblocker`. |
 | `gort:strategy:goat` | Multi-Turn | Generative Offensive Agent Tester (multi-technique adaptive reasoning across turns). |
