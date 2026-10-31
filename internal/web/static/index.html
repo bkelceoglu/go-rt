@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="pi-dark">
+<html lang="en" data-theme="gort-dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GORT — Enterprise AI Red Teaming Command Center</title>
   <script>
     (() => {
-      const saved = localStorage.getItem("gort:theme") || "pi-dark";
+      const raw = localStorage.getItem("gort:theme") || "gort-dark";
+      const saved = raw === "pi-dark" ? "gort-dark" : raw === "pi-light" ? "gort-light" : raw;
       document.documentElement.dataset.theme = saved;
-      document.documentElement.style.colorScheme = saved === "pi-light" ? "light" : "dark";
+      document.documentElement.style.colorScheme = saved === "gort-light" ? "light" : "dark";
     })();
   </script>
   <link rel="preload" href="/fonts/PlantinNowVariable-Upright.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
@@ -69,9 +70,9 @@
       <div class="sidebar-theme-box">
         <div class="nav-section-label" style="padding:0 0 6px 0;">UI THEME ENGINE</div>
         <div class="theme-switcher-group" role="group" aria-label="Theme Switcher">
-          <button type="button" class="theme-chip" data-set-theme="pi-dark" title="Pi Evening Blue (Blueprint Dark)">Pi Dark</button>
-          <button type="button" class="theme-chip" data-set-theme="pi-light" title="Pi Parchment (Moonstone Light)">Pi Light</button>
-          <button type="button" class="theme-chip" data-set-theme="gort-cyber" title="Classic GORT Cyber Obsidian">Cyber</button>
+          <button type="button" class="theme-chip" data-set-theme="gort-dark" title="GORT Dark (Blueprint Evening Blue)">GORT DARK</button>
+          <button type="button" class="theme-chip" data-set-theme="gort-light" title="GORT Light (Parchment Moonstone)">GORT LIGHT</button>
+          <button type="button" class="theme-chip" data-set-theme="gort-cyber" title="Classic GORT Cyber Obsidian">CYBER</button>
         </div>
       </div>
 
@@ -88,7 +89,7 @@
           <p id="page-subtitle">Configure Target, Attacker &amp; Judge LLMs, Prompt Bank datasets, 155 plugins, and strategies</p>
         </div>
         <div class="header-actions">
-          <button type="button" id="btn-cycle-theme" class="btn btn-outline" title="Cycle UI Theme (Pi Dark / Pi Light / Cyber)">◐ Theme: Pi Dark</button>
+          <button type="button" id="btn-cycle-theme" class="btn btn-outline" title="Cycle UI Theme (GORT DARK / GORT LIGHT / CYBER)">◐ Theme: GORT DARK</button>
           <label class="inline-label" for="config-file-select">Saved:</label>
           <select id="config-file-select" class="input-select"></select>
           <button id="btn-reload-config" class="btn btn-secondary" title="Load selected YAML file from disk">Load</button>

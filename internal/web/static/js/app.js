@@ -114,17 +114,18 @@ async function refreshConfigDropdown() {
   }
 }
 
-const THEME_ORDER = ["pi-dark", "pi-light", "gort-cyber"];
+const THEME_ORDER = ["gort-dark", "gort-light", "gort-cyber"];
 const THEME_LABELS = {
-  "pi-dark": "Pi Dark",
-  "pi-light": "Pi Light",
-  "gort-cyber": "Cyber Dark",
+  "gort-dark": "GORT DARK",
+  "gort-light": "GORT LIGHT",
+  "gort-cyber": "CYBER DARK",
 };
 
 function applyTheme(theme) {
-  const valid = THEME_ORDER.includes(theme) ? theme : "pi-dark";
+  const normalized = theme === "pi-dark" ? "gort-dark" : theme === "pi-light" ? "gort-light" : theme;
+  const valid = THEME_ORDER.includes(normalized) ? normalized : "gort-dark";
   document.documentElement.dataset.theme = valid;
-  document.documentElement.style.colorScheme = valid === "pi-light" ? "light" : "dark";
+  document.documentElement.style.colorScheme = valid === "gort-light" ? "light" : "dark";
   localStorage.setItem("gort:theme", valid);
 
   document.querySelectorAll(".theme-chip").forEach((btn) => {
@@ -140,7 +141,7 @@ function applyTheme(theme) {
 async function initApp() {
   subscribe(() => updateLiveYAMLPanel());
 
-  const initialTheme = localStorage.getItem("gort:theme") || "pi-dark";
+  const initialTheme = localStorage.getItem("gort:theme") || "gort-dark";
   applyTheme(initialTheme);
 
   document.querySelectorAll(".theme-chip").forEach((btn) => {
@@ -154,7 +155,7 @@ async function initApp() {
   const cycleBtn = document.getElementById("btn-cycle-theme");
   if (cycleBtn) {
     cycleBtn.addEventListener("click", () => {
-      const current = document.documentElement.dataset.theme || "pi-dark";
+      const current = document.documentElement.dataset.theme || "gort-dark";
       const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
       applyTheme(next);
       showToast(`Switched UI theme to: ${THEME_LABELS[next]}`);

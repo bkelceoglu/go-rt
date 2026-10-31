@@ -27,10 +27,10 @@
 }
 
 /* ==========================================================================
-   1. PI.DEV STRIPPED TOKENS — DEFAULT: PI DARK (EVENING BLUE / BLUEPRINT)
+   1. GORT BLUEPRINT TOKENS — DEFAULT: GORT DARK (EVENING BLUE / BLUEPRINT)
    ========================================================================== */
 :root,
-:root[data-theme="pi-dark"] {
+:root[data-theme="gort-dark"] {
   color-scheme: dark;
   --color-parchment: #dacbc2;
   --color-moonstone: #ebe7e4;
@@ -106,9 +106,9 @@
 }
 
 /* ==========================================================================
-   2. PI.DEV STRIPPED TOKENS — PI LIGHT (PARCHMENT / MOONSTONE)
+   2. GORT BLUEPRINT TOKENS — GORT LIGHT (PARCHMENT / MOONSTONE)
    ========================================================================== */
-:root[data-theme="pi-light"] {
+:root[data-theme="gort-light"] {
   color-scheme: light;
   --bg-deep: #dacbc2;
   --bg-app: #ebe7e4;
