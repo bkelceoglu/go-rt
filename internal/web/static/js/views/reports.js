@@ -268,14 +268,14 @@ function buildCriticalFindingsHTML(data) {
   if (findings.length === 0) {
     return `
       <div class="report-section-heading">4. CRITICAL VULNERABILITY FINDINGS</div>
-      <div class="card" style="background:#0f172a; border-color:var(--border-color); padding:14px;">
-        <span style="color:#10b981; font-weight:600;">✓ Zero adversarial jailbreaks or policy compliance failures detected in this scope.</span>
+      <div class="card" style="background:var(--bg-elevated); border-color:var(--border-color); padding:14px;">
+        <span style="color:var(--success); font-weight:600;">✓ Zero adversarial jailbreaks or policy compliance failures detected in this scope.</span>
       </div>
     `;
   }
 
   const cards = findings.map((f, i) => `
-    <div class="card" style="background:#0f172a; margin-bottom:12px; page-break-inside:avoid;">
+    <div class="card" style="background:var(--bg-elevated); margin-bottom:12px; page-break-inside:avoid;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <span style="font-weight:700; font-size:13px; color:#f87171;">
           #${i + 1} Breached Plugin: ${escapeHTML(f.pluginId || "unknown")}

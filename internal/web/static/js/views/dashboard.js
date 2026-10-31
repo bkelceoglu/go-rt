@@ -129,19 +129,19 @@ function mountDashboardContent(container, stats, showToast, navigateToRoute) {
           <span class="card-title">Severity Impact &amp; Top Failing Plugins</span>
         </div>
         <div style="display:flex;gap:10px;margin-bottom:14px;">
-          <div style="flex:1;background:#0f172a;padding:10px;border-radius:6px;border:1px solid var(--border-color);text-align:center;">
+          <div style="flex:1;background:var(--bg-elevated);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border-color);text-align:center;">
             <span class="badge badge-critical">Critical</span>
             <div style="font-size:18px;font-weight:700;margin-top:4px;">${stats.severityStats?.critical || 0}</div>
           </div>
-          <div style="flex:1;background:#0f172a;padding:10px;border-radius:6px;border:1px solid var(--border-color);text-align:center;">
+          <div style="flex:1;background:var(--bg-elevated);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border-color);text-align:center;">
             <span class="badge badge-high">High</span>
             <div style="font-size:18px;font-weight:700;margin-top:4px;">${stats.severityStats?.high || 0}</div>
           </div>
-          <div style="flex:1;background:#0f172a;padding:10px;border-radius:6px;border:1px solid var(--border-color);text-align:center;">
+          <div style="flex:1;background:var(--bg-elevated);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border-color);text-align:center;">
             <span class="badge badge-medium">Medium</span>
             <div style="font-size:18px;font-weight:700;margin-top:4px;">${stats.severityStats?.medium || 0}</div>
           </div>
-          <div style="flex:1;background:#0f172a;padding:10px;border-radius:6px;border:1px solid var(--border-color);text-align:center;">
+          <div style="flex:1;background:var(--bg-elevated);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border-color);text-align:center;">
             <span class="badge badge-low">Low</span>
             <div style="font-size:18px;font-weight:700;margin-top:4px;">${stats.severityStats?.low || 0}</div>
           </div>

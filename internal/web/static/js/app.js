@@ -114,8 +114,52 @@ async function refreshConfigDropdown() {
   }
 }
 
+const THEME_ORDER = ["pi-dark", "pi-light", "gort-cyber"];
+const THEME_LABELS = {
+  "pi-dark": "Pi Dark",
+  "pi-light": "Pi Light",
+  "gort-cyber": "Cyber Dark",
+};
+
+function applyTheme(theme) {
+  const valid = THEME_ORDER.includes(theme) ? theme : "pi-dark";
+  document.documentElement.dataset.theme = valid;
+  document.documentElement.style.colorScheme = valid === "pi-light" ? "light" : "dark";
+  localStorage.setItem("gort:theme", valid);
+
+  document.querySelectorAll(".theme-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.setTheme === valid);
+  });
+
+  const cycleBtn = document.getElementById("btn-cycle-theme");
+  if (cycleBtn) {
+    cycleBtn.textContent = `◐ Theme: ${THEME_LABELS[valid] || valid}`;
+  }
+}
+
 async function initApp() {
   subscribe(() => updateLiveYAMLPanel());
+
+  const initialTheme = localStorage.getItem("gort:theme") || "pi-dark";
+  applyTheme(initialTheme);
+
+  document.querySelectorAll(".theme-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetTheme = btn.dataset.setTheme;
+      applyTheme(targetTheme);
+      showToast(`Activated UI theme: ${THEME_LABELS[targetTheme]}`);
+    });
+  });
+
+  const cycleBtn = document.getElementById("btn-cycle-theme");
+  if (cycleBtn) {
+    cycleBtn.addEventListener("click", () => {
+      const current = document.documentElement.dataset.theme || "pi-dark";
+      const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
+      applyTheme(next);
+      showToast(`Switched UI theme to: ${THEME_LABELS[next]}`);
+    });
+  }
 
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.addEventListener("click", () => {

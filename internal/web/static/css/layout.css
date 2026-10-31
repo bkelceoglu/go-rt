@@ -1,73 +1,403 @@
-:root {
+@font-face {
+  font-family: "Plantin MT Pro";
+  src:
+    url("/fonts/PlantinNowVariable-Upright.woff2") format("woff2-variations"),
+    url("/fonts/PlantinNowVariable-Upright.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Plantin MT Pro";
+  src:
+    url("/fonts/PlantinNowVariable-Italic.woff2") format("woff2-variations"),
+    url("/fonts/PlantinNowVariable-Italic.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Departure Mono";
+  src: url("/fonts/DepartureMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================================================
+   1. PI.DEV STRIPPED TOKENS — DEFAULT: PI DARK (EVENING BLUE / BLUEPRINT)
+   ========================================================================== */
+:root,
+:root[data-theme="pi-dark"] {
+  color-scheme: dark;
+  --color-parchment: #dacbc2;
+  --color-moonstone: #ebe7e4;
+  --color-driftwood: #5c5752;
+  --color-evening-blue: #252f3d;
+  --color-terracotta: #844f3b;
+  --color-terracotta-light: #b86b52;
+  --color-sunkissed: #e1b06e;
+  --color-sage: #a3a473;
+  --color-tidal-blue: #4b607c;
+  --color-accent-blue: #6a9fcc;
+
+  --bg-deep: #0d1116;
+  --bg-app: #161d27;
+  --bg-sidebar: #161d27;
+  --bg-sidebar-gradient: linear-gradient(180deg, #212730f7, #0d1116e8), linear-gradient(90deg, #4b607c24, #2f5f8a14);
+  --bg-surface: #212730e6;
+  --bg-card: #212730e6;
+  --bg-elevated: #252f3dd1;
+  --bg-input: #252f3dd1;
+  --bg-code: #0d1116e8;
+  --table-heading-bg: #ffffff0b;
+  --surface-tint: #ffffff05;
+  --control-bg: #ffffff04;
+  --control-bg-hover: #ffffff09;
+
+  --border-color: #49505980;
+  --border-strong: #757d8975;
+  --text-primary: #ebe7e4;
+  --text-secondary: #d5d8dbcc;
+  --text-muted: #9fa4abad;
+
+  --accent-primary: #6a9fcc;
+  --accent-hover: #8bb8df;
+  --accent-rust: #8f3222;
+  --thread-blue: #4b607c;
+  --accent-surface-subtle: #6a9fcc0e;
+  --accent-surface-soft: #6a9fcc16;
+  --accent-border-hover: #6a9fcc6b;
+  --accent-border-strong: #6a9fcc66;
+  --focus-ring: #6a9fccb8;
+
+  --success: #5db87a;
+  --warning: #e8993a;
+  --danger: #e8704f;
+
+  --active-stripe: linear-gradient(90deg, var(--accent-primary) 0 62%, var(--thread-blue) 62% 100%);
+  --active-stripe-vertical: linear-gradient(180deg, var(--accent-primary) 0 62%, var(--thread-blue) 62% 100%);
+
+  --page-grid-cell: 20px;
+  --page-grid-inset: -8rem;
+  --page-grid-minor: hsl(218 60% 80% / 0.011);
+  --page-grid-major: hsl(218 60% 80% / 0.029);
+  --page-grid-cross: hsl(218 60% 80% / 0.08);
+  --page-vignette-overlay: #0d11161f;
+  --scrollbar-thumb: #2f5f8a47;
+  --scrollbar-thumb-hover: #2f5f8a66;
+  --selection-background: #6a9fcc3d;
+
+  --serif: "Plantin MT Pro", Georgia, "Times New Roman", serif;
+  --accent-mono: "Departure Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Plantin MT Pro", Georgia, system-ui, -apple-system, sans-serif;
+  --font-heading: var(--serif);
+  --heading-style: italic;
+  --heading-weight: 450;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --btn-bracket-display: inline-block;
+  --grid-overlay-display: block;
+}
+
+/* ==========================================================================
+   2. PI.DEV STRIPPED TOKENS — PI LIGHT (PARCHMENT / MOONSTONE)
+   ========================================================================== */
+:root[data-theme="pi-light"] {
+  color-scheme: light;
+  --bg-deep: #dacbc2;
+  --bg-app: #ebe7e4;
+  --bg-sidebar: #f4f2f0;
+  --bg-sidebar-gradient: linear-gradient(180deg, #f3f2f0f4, #ebe7e4ee), linear-gradient(90deg, #eacd7c20, #4b607c12);
+  --bg-surface: #f4f2f0e8;
+  --bg-card: #f4f2f0e8;
+  --bg-elevated: #eef1f3;
+  --bg-input: #eef1f3;
+  --bg-code: #e4e0dc;
+  --table-heading-bg: #252f3d0f;
+  --surface-tint: #252f3d0d;
+  --control-bg: #252f3d08;
+  --control-bg-hover: #252f3d12;
+
+  --border-color: #8b847d59;
+  --border-strong: #5c575245;
+  --text-primary: #252f3df5;
+  --text-secondary: #384251dc;
+  --text-muted: #5c5752c4;
+
+  --accent-primary: #4b607c;
+  --accent-hover: #252f3d;
+  --accent-rust: #b86b52;
+  --thread-blue: #4b607c;
+  --accent-surface-subtle: #4b607c0c;
+  --accent-surface-soft: #4b607c15;
+  --accent-border-hover: #4b607c59;
+  --accent-border-strong: #4b607c66;
+  --focus-ring: #4b607c80;
+
+  --success: #2f7d4a;
+  --warning: #b86b19;
+  --danger: #b43c25;
+
+  --active-stripe: linear-gradient(90deg, var(--accent-primary), var(--accent-rust));
+  --active-stripe-vertical: linear-gradient(180deg, var(--accent-primary), var(--accent-rust));
+
+  --page-grid-minor: #252f3d08;
+  --page-grid-major: #252f3d12;
+  --page-grid-cross: #252f3d1d;
+  --page-vignette-overlay: #ebe7e426;
+  --scrollbar-thumb: #4b607c3d;
+  --scrollbar-thumb-hover: #4b607c59;
+  --selection-background: #4b607c24;
+
+  --serif: "Plantin MT Pro", Georgia, "Times New Roman", serif;
+  --accent-mono: "Departure Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Plantin MT Pro", Georgia, system-ui, -apple-system, sans-serif;
+  --font-heading: var(--serif);
+  --heading-style: italic;
+  --heading-weight: 450;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --btn-bracket-display: inline-block;
+  --grid-overlay-display: block;
+}
+
+/* ==========================================================================
+   3. CLASSIC GORT CYBER OBSIDIAN THEME (PRESERVED OPTION)
+   ========================================================================== */
+:root[data-theme="gort-cyber"] {
+  color-scheme: dark;
+  --bg-deep: #070a12;
   --bg-app: #0b0f19;
   --bg-sidebar: #111827;
+  --bg-sidebar-gradient: none;
   --bg-surface: #161f33;
+  --bg-card: #161f33;
   --bg-elevated: #1e293b;
+  --bg-input: #0f172a;
+  --bg-code: #020617;
+  --table-heading-bg: #0f172a;
+  --surface-tint: rgba(255, 255, 255, 0.02);
+  --control-bg: #1e293b;
+  --control-bg-hover: #293548;
+
   --border-color: #293548;
+  --border-strong: #3b4c66;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+
   --accent-primary: #38bdf8;
   --accent-hover: #0284c7;
+  --accent-rust: #f43f5e;
+  --thread-blue: #2563eb;
+  --accent-surface-subtle: rgba(56, 189, 248, 0.08);
+  --accent-surface-soft: rgba(56, 189, 248, 0.14);
+  --accent-border-hover: rgba(56, 189, 248, 0.5);
+  --accent-border-strong: rgba(56, 189, 248, 0.65);
+  --focus-ring: rgba(56, 189, 248, 0.7);
+
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+
+  --active-stripe: linear-gradient(90deg, #38bdf8, #2563eb);
+  --active-stripe-vertical: linear-gradient(180deg, #38bdf8, #2563eb);
+
+  --scrollbar-thumb: #334155;
+  --scrollbar-thumb-hover: #475569;
+  --selection-background: rgba(56, 189, 248, 0.25);
+
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, monospace;
+  --accent-mono: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --heading-style: normal;
+  --heading-weight: 700;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --btn-bracket-display: none;
+  --grid-overlay-display: none;
 }
 
+/* ==========================================================================
+   BASE & PI.DEV ARCHITECTURAL BLUEPRINT GRID OVERLAY
+   ========================================================================== */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 0;
+  border-radius: 0;
+  background: var(--scrollbar-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+::selection {
+  background: var(--selection-background);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background-color: var(--bg-app);
+  transition: background-color 280ms ease;
 }
 
 body {
-  background-color: var(--bg-app);
+  position: relative;
+  background-color: transparent;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.55;
   height: 100vh;
   overflow: hidden;
+  transition: color 280ms ease, background-color 280ms ease;
+}
+
+body::before,
+body::after {
+  content: "";
+  display: var(--grid-overlay-display, block);
+  position: fixed;
+  inset: var(--page-grid-inset, -8rem);
+  z-index: 0;
+  pointer-events: none;
+}
+
+body::before {
+  --grid-gap: calc(var(--page-grid-cell, 20px) / 5);
+  --paper-bg: var(--bg-app);
+
+  background-color: var(--bg-app);
+  background-image:
+    linear-gradient(var(--page-grid-minor) 0 1px, transparent 1px var(--grid-gap)),
+    linear-gradient(to right, var(--page-grid-minor) 0 1px, transparent 1px var(--grid-gap)),
+    linear-gradient(var(--page-grid-major) 0 1px, transparent 1px calc(var(--grid-gap) * 5)),
+    linear-gradient(to right, var(--page-grid-major) 0 1px, transparent 1px calc(var(--grid-gap) * 5)),
+    radial-gradient(
+      circle at center,
+      transparent calc(var(--grid-gap) / 2),
+      var(--paper-bg) calc(var(--grid-gap) / 2) 100%
+    ),
+    linear-gradient(var(--page-grid-cross) 0 1px, transparent 1px calc(var(--grid-gap) * 5)),
+    linear-gradient(to right, var(--page-grid-cross) 0 1px, transparent 1px calc(var(--grid-gap) * 5));
+  background-size:
+    var(--grid-gap) var(--grid-gap),
+    var(--grid-gap) var(--grid-gap),
+    calc(var(--grid-gap) * 5) calc(var(--grid-gap) * 5),
+    calc(var(--grid-gap) * 5) calc(var(--grid-gap) * 5),
+    calc(var(--grid-gap) * 5) calc(var(--grid-gap) * 5),
+    calc(var(--grid-gap) * 5) calc(var(--grid-gap) * 5),
+    calc(var(--grid-gap) * 5) calc(var(--grid-gap) * 5);
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0,
+    calc(var(--grid-gap) * -2.5) calc(var(--grid-gap) * -2.5),
+    0 0,
+    0 0;
+}
+
+body::after {
+  background: linear-gradient(
+    to bottom,
+    var(--page-vignette-overlay),
+    var(--bg-app) 92%
+  );
 }
 
 .app-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
-  grid-template-columns: 250px 1fr 410px;
+  grid-template-columns: 260px 1fr 415px;
   height: 100vh;
   width: 100vw;
 }
 
 .app-shell.yaml-collapsed {
-  grid-template-columns: 250px 1fr 0px;
+  grid-template-columns: 260px 1fr 0px;
 }
 
-/* LEFT SIDEBAR */
+/* ==========================================================================
+   LEFT SIDEBAR (PI.DEV NAV PANEL AESTHETIC)
+   ========================================================================== */
 .sidebar {
   background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border-color);
+  background-image: var(--bg-sidebar-gradient);
+  border-right: 1px solid var(--border-strong);
   display: flex;
   flex-direction: column;
   height: 100vh;
+  backdrop-filter: blur(8px);
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 16px;
+  padding: 16px 16px;
   border-bottom: 1px solid var(--border-color);
+  position: relative;
+}
+
+.sidebar-brand::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--active-stripe);
 }
 
 .brand-logo {
-  background: linear-gradient(135deg, #0ea5e9, #2563eb);
-  color: #fff;
-  font-weight: 800;
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  font-family: var(--accent-mono);
+  font-weight: 700;
+  font-size: 13px;
   padding: 6px 10px;
-  border-radius: 6px;
-  letter-spacing: 0.8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.14em;
+}
+
+.pi-brand-mark {
+  display: block;
+  flex-shrink: 0;
 }
 
 .brand-meta {
@@ -76,100 +406,172 @@ body {
 }
 
 .brand-title {
-  font-weight: 700;
-  font-size: 14px;
+  font-family: var(--font-heading);
+  font-style: var(--heading-style);
+  font-weight: var(--heading-weight);
+  font-size: 16px;
+  line-height: 1.15;
   color: var(--text-primary);
 }
 
 .brand-version {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-family: var(--accent-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 10px;
+  padding: 16px 12px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .nav-section-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
+  font-family: var(--accent-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--text-muted);
-  padding: 12px 10px 6px;
+  padding: 14px 10px 6px;
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   padding: 10px 12px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-family: var(--accent-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 140ms ease;
 }
 
 .nav-item:hover {
-  background-color: var(--bg-elevated);
+  background-color: var(--control-bg-hover);
+  border-color: var(--border-color);
   color: var(--text-primary);
 }
 
 .nav-item.active {
-  background-color: rgba(56, 189, 248, 0.12);
+  background: var(--accent-surface-soft);
+  color: var(--text-primary);
+  border-color: var(--accent-border-strong);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.nav-icon {
   color: var(--accent-primary);
-  border-color: rgba(56, 189, 248, 0.35);
-  font-weight: 600;
+  font-size: 13px;
+}
+
+/* THEME SWITCHER BAR IN SIDEBAR */
+.sidebar-theme-box {
+  padding: 12px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--surface-tint);
+}
+
+.theme-switcher-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.theme-chip {
+  padding: 6px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--control-bg);
+  color: var(--text-secondary);
+  font-family: var(--accent-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.theme-chip:hover {
+  border-color: var(--accent-border-hover);
+  color: var(--text-primary);
+}
+
+.theme-chip.active {
+  background: var(--accent-surface-soft);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .sidebar-footer {
-  padding: 14px 12px;
+  padding: 12px 12px;
   border-top: 1px solid var(--border-color);
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-secondary);
+  background: var(--bg-deep);
 }
 
-/* CENTER WORKSPACE */
+/* ==========================================================================
+   CENTER WORKSPACE & EDITORIAL HEADER
+   ========================================================================== */
 .workspace {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  background: transparent;
 }
 
 .workspace-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 16px 24px;
-  background-color: var(--bg-sidebar);
-  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+  backdrop-filter: blur(8px);
 }
 
 .header-titles h1 {
-  font-size: 18px;
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-style: var(--heading-style);
+  font-weight: var(--heading-weight);
+  font-size: 25px;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--text-primary);
 }
 
 .header-titles p {
-  font-size: 12.5px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
   color: var(--text-secondary);
+  margin-top: 4px;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .view-container {
@@ -178,14 +580,17 @@ body {
   padding: 22px 24px;
 }
 
-/* RIGHT YAML DRAWER */
+/* ==========================================================================
+   RIGHT YAML DRAWER
+   ========================================================================== */
 .yaml-drawer {
-  background-color: var(--bg-sidebar);
-  border-left: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+  border-left: 1px solid var(--border-strong);
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  backdrop-filter: blur(8px);
 }
 
 .yaml-drawer-header {
@@ -194,8 +599,13 @@ body {
 }
 
 .yaml-drawer-header h3 {
-  font-size: 14px;
-  margin-bottom: 6px;
+  font-family: var(--accent-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: var(--text-primary);
 }
 
 .yaml-save-bar {
@@ -203,14 +613,14 @@ body {
   gap: 8px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-surface);
+  background-color: var(--bg-elevated);
 }
 
 .yaml-editor {
   flex: 1;
   width: 100%;
-  background-color: #090d16;
-  color: #e2e8f0;
+  background-color: var(--bg-code);
+  color: var(--text-primary);
   border: none;
   padding: 16px;
   font-family: var(--font-mono);

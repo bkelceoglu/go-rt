@@ -169,7 +169,7 @@ function mountStep2Providers(body, container, showToast) {
 function renderRoleCardHTML(roleKey, title, spec, modelOptions, isJudge, removeIdx = -1) {
   const thinkVal = spec.think === true ? "true" : spec.think === false ? "false" : "omit";
   return `
-    <div class="card" data-role-card="${roleKey}" style="background:#111827;">
+    <div class="card" data-role-card="${roleKey}" style="background:var(--bg-elevated);">
       <div class="card-header">
         <span class="card-title">${title}</span>
         ${removeIdx >= 0 ? `<button class="btn btn-outline btn-remove-target" data-idx="${removeIdx}">Remove</button>` : ""}

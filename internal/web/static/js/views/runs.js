@@ -326,7 +326,7 @@ function renderModalTabBody(tab, res, turns, spans) {
   if (tab === "judge") {
     return `
       <div style="display:flex;flex-direction:column;gap:16px;">
-        <div style="background:#0f172a;padding:14px;border-radius:8px;border:1px solid var(--border-color);">
+        <div style="background:var(--bg-elevated);padding:14px;border-radius:var(--radius-md);border:1px solid var(--border-color);">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <span style="font-weight:700;">VERDICT OUTCOME</span>
             <span class="badge ${res.pass ? "badge-pass" : "badge-fail"}" style="font-size:13px;padding:4px 10px;">
