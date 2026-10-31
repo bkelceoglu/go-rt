@@ -383,21 +383,17 @@ body::after {
 .brand-logo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   background: var(--bg-elevated);
-  color: var(--text-primary);
+  color: var(--accent-primary);
   border: 1px solid var(--border-strong);
+  border-left: 2px solid var(--accent-primary);
   font-family: var(--accent-mono);
   font-weight: 700;
   font-size: 13px;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   letter-spacing: 0.14em;
-}
-
-.pi-brand-mark {
-  display: block;
-  flex-shrink: 0;
 }
 
 .brand-meta {
