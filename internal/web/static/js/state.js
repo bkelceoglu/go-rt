@@ -18,6 +18,7 @@ export function createBlankConfig() {
     promptTemplate: "{{prompt}}",
     injectVar: "prompt",
     maxConcurrency: 2,
+    sequentialSharedLlm: false,
     datasets: [],
     targets: [],
     attacker: {
@@ -57,6 +58,7 @@ export function createDefaultConfig() {
     promptTemplate: "{{prompt}}",
     injectVar: "prompt",
     maxConcurrency: 2,
+    sequentialSharedLlm: false,
     datasets: [],
     targets: [
       {
@@ -150,8 +152,11 @@ export function serializeConfigToYAML(cfg) {
     `promptTemplate: ${yamlStr(cfg.promptTemplate || "{{prompt}}")}`,
     `injectVar: ${yamlStr(cfg.injectVar || "prompt")}`,
     `maxConcurrency: ${Number(cfg.maxConcurrency || 2)}`,
-    "",
   ];
+  if (cfg.sequentialSharedLlm) {
+    lines.push(`sequentialSharedLlm: true`);
+  }
+  lines.push("");
   if (cfg.datasets && cfg.datasets.length > 0) {
     lines.push("datasets:");
     cfg.datasets.forEach((d) => lines.push(`  - ${yamlStr(d)}`));

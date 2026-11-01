@@ -1,5 +1,6 @@
 // Main Modular Entry Point & Left Sidebar Router for GORT Command Center
-import { fetchCatalog, fetchConfigList, loadConfigFile, saveConfigFile } from "./api.js";
+import { fetchCatalog, fetchConfigList, loadConfigFile, saveConfigFile, validateConfig } from "./api.js";
+import { openValidationModal, bindValidationModalEvents } from "./validator_ui.js";
 import {
   appState,
   subscribe,
@@ -184,12 +185,21 @@ async function initApp() {
       appState.config = loaded.config;
       document.getElementById("save-filename-input").value = loaded.filename;
       notify();
+      if (loaded.rawYaml) {
+        document.getElementById("yaml-preview-editor").value = loaded.rawYaml;
+      }
       renderActiveRoute();
-      showToast(`Loaded configuration from ${loaded.filename}`);
+      if (loaded.report && (!loaded.report.valid || loaded.report.needsAttackerResolution)) {
+        await openValidationModal(showToast, () => renderActiveRoute());
+      } else {
+        showToast(`Loaded & validated configuration from ${loaded.filename}`);
+      }
     } catch (err) {
       showToast(`Error loading ${file}: ${err.message}`);
     }
   });
+
+  bindValidationModalEvents(showToast, () => renderActiveRoute());
 
   document.getElementById("btn-new-blank-config").addEventListener("click", () => {
     appState.config = createBlankConfig();
@@ -211,10 +221,16 @@ async function initApp() {
     const filename = document.getElementById("save-filename-input").value.trim() || "config.yaml";
     const rawYaml = document.getElementById("yaml-preview-editor").value;
     try {
+      const valRes = await validateConfig(rawYaml);
+      if (!valRes.report.valid || valRes.report.needsAttackerResolution) {
+        await openValidationModal(showToast, () => renderActiveRoute());
+        return;
+      }
       const res = await saveConfigFile(filename, rawYaml);
       appState.activeFile = res.saved;
+      appState.config = valRes.config;
       await refreshConfigDropdown();
-      showToast(`Saved ${res.saved} (${res.bytes} bytes) to project workspace!`);
+      showToast(`Validated & saved ${res.saved} (${res.bytes} bytes) to project workspace!`);
     } catch (err) {
       showToast(`Save failed: ${err.message}`);
     }

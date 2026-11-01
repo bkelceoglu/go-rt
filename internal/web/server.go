@@ -83,6 +83,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/configs", s.handleListConfigs)
 	s.mux.HandleFunc("GET /api/configs/load", s.handleLoadConfig)
 	s.mux.HandleFunc("POST /api/configs/save", s.handleSaveConfig)
+	s.mux.HandleFunc("POST /api/configs/validate", s.handleValidateConfig)
+	s.mux.HandleFunc("POST /api/configs/autofix", s.handleAutoFixConfig)
 	s.mux.HandleFunc("POST /api/datasets/custom", s.handleSaveCustomDataset)
 
 	s.mux.HandleFunc("POST /api/assessments/start", s.handleStartAssessment)

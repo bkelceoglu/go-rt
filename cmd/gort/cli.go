@@ -7,6 +7,7 @@ type cliCommandKind string
 const (
 	cmdHelp           cliCommandKind = "help"
 	cmdVersion        cliCommandKind = "version"
+	cmdValidate       cliCommandKind = "validate"
 	cmdListDatasets   cliCommandKind = "list-datasets"
 	cmdListPlugins    cliCommandKind = "list-plugins"
 	cmdListStrategies cliCommandKind = "list-strategies"
@@ -55,6 +56,8 @@ func detectSubcommand(args []string) (parsedCLI, bool) {
 			aiGen = true
 		case "results", "result", "runs", "history", "--results":
 			kind = cmdListResults
+		case "validate", "check", "--validate":
+			kind = cmdValidate
 		case "view", "ui", "web", "wizard", "--view", "--ui":
 			kind = cmdWebUI
 		case "plugins", "plugin", "--list-plugins", "--plugins", "-p":

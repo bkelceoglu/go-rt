@@ -2,6 +2,8 @@
 import {
   fetchConfigList,
   fetchCatalog,
+  loadConfigFile,
+  validateConfig,
   startAssessment,
   stopAssessment,
   fetchAssessmentStatus,
@@ -9,6 +11,7 @@ import {
   fetchLogTail,
 } from "../api.js";
 import { appState, serializeConfigToYAML } from "../state.js";
+import { openValidationModal } from "../validator_ui.js";
 
 let logLines = [];
 let eventSource = null;
@@ -162,13 +165,23 @@ async function onStartAssessment() {
   const datasetSel = document.getElementById("live-dataset-select").value;
   const payload = { dataset: datasetSel };
 
-  if (configSel === "__active_wizard__") {
-    payload.rawYaml = serializeConfigToYAML(appState.config);
-  } else {
-    payload.configFile = configSel;
-  }
-
   try {
+    let yamlToCheck = "";
+    if (configSel === "__active_wizard__") {
+      yamlToCheck = document.getElementById("yaml-preview-editor")?.value || serializeConfigToYAML(appState.config);
+      payload.rawYaml = yamlToCheck;
+    } else {
+      const loaded = await loadConfigFile(configSel);
+      yamlToCheck = loaded.rawYaml;
+      payload.configFile = configSel;
+    }
+    const valRes = await validateConfig(yamlToCheck);
+    if (!valRes.report.valid || valRes.report.needsAttackerResolution) {
+      document.getElementById("yaml-preview-editor").value = yamlToCheck;
+      await openValidationModal(showToastFn);
+      return;
+    }
+
     const res = await startAssessment(payload);
     showToastFn(res.message || "Assessment launched successfully!");
     appendLog(`[SYSTEM] Assessment launched with dataset: ${datasetSel}`);

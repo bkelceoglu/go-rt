@@ -5,7 +5,7 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0, Faz 1, Faz 2, Faz 3, Faz 4, Faz 5 ve Faz 6 Tamamlandı ✅ (CLI Motoru & Web Command Center %100 Hazır)
+- **Aktif Faz:** Faz 0..7 Tamamlandı ✅ (CLI Motoru, Web Command Center, YAML Doğrulama & Çift Katmanlı Auto-Fix %100 Hazır)
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
@@ -22,6 +22,7 @@
   - `gort ls` / `gort ls <numara|isim>` $\rightarrow$ Tüm veri setlerini listeler veya seçilen veri setinin promptlarını tablo olarak basar (`cmd/gort/inspector.go`).
   - `gort plugins` / `gort plugins <numara|id>` $\rightarrow$ 155 plugini listeler veya seçilen pluginin tehdit vektörünü, Judge kriterini ve `config.yaml` kullanım örneğini offline kart olarak basar (`--ai` ile canlı prompt üretir).
   - `gort strategies` / `gort strategies <numara|id>` $\rightarrow$ 28 saldırı stratejisini listeler veya seçilen stratejinin saldırı mekanizmasını, türünü ve `config.yaml` kullanım örneğini basar.
+  - `gort validate [config.yaml]` $\rightarrow$ YAML format/yapı/SQLite katalog doğrulaması, Attacker LLM mantık kontrolü (1.1 Özel Attacker, 1.2.1 Strateji Çıkarma, 1.2.2 Sıralı Judge/Attacker) ve kullanıcı onaylı çift katmanlı Auto-Fix (2.1 Mini Engine + 2.2 Judge LLM) çalıştırır.
   - `gort results` / `gort results <numara|eval_id> [-v|--verbose]` $\rightarrow$ SQLite `eval_runs` ve `eval_results` tablolarındaki geçmiş koşuları ve tüm konuşma geçmişini (`[BACKTRACKED]` turlar dahil) harici `sqlite3` olmadan doğrudan terminalde gösterir.
   - `tail -f .gort/gort.log` $\rightarrow$ Her koşuda `--verbose` bağımsız olarak tüm adımları zaman damgalı (`RFC3339`) canlı log dosyasına (`internal/telemetry/livelog.go`) anlık yazar.
   - `gort pull` $\rightarrow$ Tüm uzak veri setlerini indirip SQLite `prompt_bank` ve `prompts/` klasörünü senkronize eder.

@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caveman/go-rt/internal/config"
 	"github.com/caveman/go-rt/internal/dataset"
 	"github.com/caveman/go-rt/internal/domain"
 	"github.com/caveman/go-rt/internal/engine"
@@ -112,6 +111,9 @@ func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader
 		return printEvalRuns(db)
 	case cmdWebUI:
 		return runWebDashboard(db, parsed.TargetArg)
+	case cmdValidate:
+		_, err := runInteractiveValidation(parsed.ConfigPath, db, in)
+		return err
 	case cmdPullDatasets:
 		return runPullDatasets(db)
 	default:
@@ -182,7 +184,7 @@ func runPullDatasets(db *store.SQLiteStore) error {
 }
 
 func executeAssessment(configPath string, datasetArgs []string, verbose bool, db *store.SQLiteStore, in io.Reader) error {
-	cfg, err := config.Load(configPath)
+	cfg, err := runInteractiveValidation(configPath, db, in)
 	if err != nil {
 		return err
 	}
@@ -278,6 +280,7 @@ func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginR
 func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, verbose bool, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
 	judge := buildJudgeProvider(cfg.Judge)
 	attacker := buildAttackerProvider(cfg.Attacker)
+	attacker, judge = provider.WrapSharedSequential(attacker, judge, cfg.SequentialSharedLLM)
 	exemptMap := loadStrategyExemptMap(ctx, db)
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	evaluator := engine.NewEvaluator(db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
@@ -402,6 +405,7 @@ func printUsage() {
 	fmt.Println("  gort ls [index|dataset_name]                      # List all prompt sets or inspect prompts as a table")
 	fmt.Println("  gort plugins [index|plugin_id] [--ai]             # List all 155 plugins or inspect a plugin usage card")
 	fmt.Println("  gort strategies [index|strategy_id]               # List all 28 attack strategies or inspect a strategy card")
+	fmt.Println("  gort validate [config.yaml]                       # Validate YAML format, Attacker LLM logic & run Auto-Fix")
 	fmt.Println("  gort results [index|eval_id] [-v|--verbose]       # List stored runs or inspect full prompt/output/turns")
 	fmt.Println("  gort pull | sync | --pull-datasets                # Pull and sync all remote datasets into SQLite & prompts/")
 }

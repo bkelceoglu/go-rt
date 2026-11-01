@@ -36,6 +36,28 @@ export async function saveConfigFile(filename, rawYaml) {
   return data;
 }
 
+export async function validateConfig(rawYaml) {
+  const res = await fetch("/api/configs/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rawYaml }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to validate configuration");
+  return data;
+}
+
+export async function autoFixConfig(payload) {
+  const res = await fetch("/api/configs/autofix", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Auto-fix failed");
+  return data;
+}
+
 export async function saveCustomDataset(name, records) {
   const res = await fetch("/api/datasets/custom", {
     method: "POST",

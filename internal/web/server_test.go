@@ -29,6 +29,7 @@ func TestWebServerCatalogAndConfigWizardAPIs(t *testing.T) {
 	verifyIndexPage(t, ts.URL)
 	verifyCatalogEndpoint(t, ts.URL)
 	verifySaveAndLoadConfig(t, ts.URL)
+	verifyValidateAndAutoFixConfig(t, ts.URL)
 	verifyCustomDatasetSaveAndLoad(t, ts.URL)
 	verifyDashboardAndRunsEndpoints(t, ts.URL, db)
 	verifyAssessmentAndLogEndpoints(t, ts.URL)
@@ -91,6 +92,40 @@ targets:
 	_ = json.NewDecoder(loadResp.Body).Decode(&loaded)
 	if !strings.Contains(loaded.RawYAML, "Qwen2.5-7B-Instruct") {
 		t.Fatalf("unexpected loaded yaml: %s", loaded.RawYAML)
+	}
+}
+
+func verifyValidateAndAutoFixConfig(t *testing.T, baseURL string) {
+	brokenYAML := `target:
+  - id: ollama:llama3:8b
+judge:
+  id: ollama:qwen3:8b
+strategy:
+  - id: crescendo
+`
+	valPayload, _ := json.Marshal(map[string]string{"rawYaml": brokenYAML})
+	valResp, err := http.Post(baseURL+"/api/configs/validate", "application/json", bytes.NewReader(valPayload))
+	if err != nil || valResp.StatusCode != http.StatusOK {
+		t.Fatalf("validate config failed: %v", err)
+	}
+	valResp.Body.Close()
+
+	fixPayload, _ := json.Marshal(map[string]string{
+		"rawYaml":            brokenYAML,
+		"engine":             "mini",
+		"attackerResolution": "use_judge_sequential",
+	})
+	fixResp, err := http.Post(baseURL+"/api/configs/autofix", "application/json", bytes.NewReader(fixPayload))
+	if err != nil || fixResp.StatusCode != http.StatusOK {
+		t.Fatalf("autofix config failed: %v", err)
+	}
+	defer fixResp.Body.Close()
+	var fixOut struct {
+		FixedYAML string `json:"fixedYaml"`
+	}
+	_ = json.NewDecoder(fixResp.Body).Decode(&fixOut)
+	if !strings.Contains(fixOut.FixedYAML, "sequentialSharedLlm: true") {
+		t.Fatalf("expected sequentialSharedLlm: true in fixed YAML, got:\n%s", fixOut.FixedYAML)
 	}
 }
 

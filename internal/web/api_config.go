@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/caveman/go-rt/internal/config"
+	"github.com/caveman/go-rt/internal/domain"
+	"github.com/caveman/go-rt/internal/plugin"
+	"github.com/caveman/go-rt/internal/provider"
 	"gopkg.in/yaml.v3"
 )
 
@@ -50,16 +53,74 @@ func (s *Server) handleLoadConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "config file not found: "+file)
 		return
 	}
-	cfg, err := config.ParseBytes(raw)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	cat := plugin.BuildCatalogSnapshot(r.Context(), s.db)
+	rep, cfg := config.ValidateYAML(raw, cat)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"filename": file,
 		"config":   cfg,
 		"rawYaml":  string(raw),
+		"report":   rep,
 	})
+}
+
+type validateConfigRequest struct {
+	RawYAML string `json:"rawYaml"`
+}
+
+func (s *Server) handleValidateConfig(w http.ResponseWriter, r *http.Request) {
+	var req validateConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	cat := plugin.BuildCatalogSnapshot(r.Context(), s.db)
+	rep, cfg := config.ValidateYAML([]byte(req.RawYAML), cat)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"report": rep,
+		"config": cfg,
+	})
+}
+
+type autoFixConfigRequest struct {
+	RawYAML            string                        `json:"rawYaml"`
+	Engine             string                        `json:"engine"`
+	AttackerResolution config.AttackerResolutionMode `json:"attackerResolution"`
+	CustomAttackerID   string                        `json:"customAttackerId"`
+	CustomAttackerURL  string                        `json:"customAttackerUrl"`
+}
+
+func (s *Server) handleAutoFixConfig(w http.ResponseWriter, r *http.Request) {
+	var req autoFixConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	res, err := s.executeWebAutoFix(r, req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) executeWebAutoFix(r *http.Request, req autoFixConfigRequest) (config.AutoFixResult, error) {
+	cat := plugin.BuildCatalogSnapshot(r.Context(), s.db)
+	opts := config.AutoFixOptions{
+		AttackerResolution: req.AttackerResolution,
+		CustomAttackerID:   req.CustomAttackerID,
+		CustomAttackerURL:  req.CustomAttackerURL,
+	}
+	if strings.EqualFold(req.Engine, "judge") {
+		return s.runJudgeWebAutoFix(r, req.RawYAML, cat, opts)
+	}
+	return config.AutoFixMiniEngine([]byte(req.RawYAML), cat, opts)
+}
+
+func (s *Server) runJudgeWebAutoFix(r *http.Request, rawYAML string, cat *config.CatalogSnapshot, opts config.AutoFixOptions) (config.AutoFixResult, error) {
+	var partial domain.Config
+	_ = yaml.Unmarshal([]byte(rawYAML), &partial)
+	judge := provider.BuildJudge(partial.Judge)
+	return config.AutoFixWithJudgeLLM(r.Context(), judge, []byte(rawYAML), cat, opts)
 }
 
 type saveConfigRequest struct {

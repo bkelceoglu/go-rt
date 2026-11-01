@@ -89,3 +89,15 @@
   - Saldırı stratejisi etkinlik tablosu ve kritik zafiyet bulguları (ham prompt, kanıt niteliğindeki hedef yanıtı, Judge gerekçesi).
   - NIST AI RMF 1.0 ve OWASP standartlarında Baş Denetçi Tasdiki & İmza alanı.
   - JSON dışa aktarma (`⬇ Export JSON`) ve tek tıkla vektörel PDF / Yazıcı çıktısı (`⎙ Print / Save as PDF`).
+
+## Faz 7: YAML Doğrulama, Mantık Kontrolü (Attacker/Judge Sıralı Kilit) & Otomatik Düzeltme (`docs/validation.md`) — ✅ TAMAMLANDI
+- [x] **Format ve Yapı Doğrulayıcı (`internal/config/validator.go`):**
+  - Sıkı YAML sözdizimi (`KnownFields(true)`), `targets`/`judge` yapı kontrolü ve SQLite kataloğundaki (155 plugin, 14 koleksiyon, 28 strateji) ID eşleşme doğrulaması.
+- [x] **Mantık Kontrolü & Sıralı Judge/Attacker Çalışma Kilidi (`internal/provider/serialized.go`):**
+  - Attacker LLM gerektiren stratejiler (`crescendo`, `goat`, `hydra`, `retry`) seçildiğinde `attacker.id` boşsa kullanıcıya 3 seçenek sunulması: 1.1 Özel Attacker LLM girilmesi, 1.2.1 Attacker stratejilerinin çıkarılması veya 1.2.2 Judge LLM'in sıralı modda (`SequentialSharedLLM: true`, `MaxConcurrency: 1`, `SerializedProvider` paylaşımlı `sync.Mutex`) Attacker olarak kullanılması.
+- [x] **Çift Katmanlı Otomatik Düzeltme Motoru (`internal/config/autofix.go`):**
+  - **2.1 Mini Engine (`AutoFixMiniEngine`):** `<1ms` deterministik sekme/girinti, anahtar yazım hatası (`target:` -> `targets:`, `strategy:` -> `strategies:`) ve katalog ID önek (`crescendo` -> `gort:strategy:crescendo`) onarımı.
+  - **2.2 Judge LLM Repair (`AutoFixWithJudgeLLM`):** Judge LLM üzerinden ağır bozuk YAML onarımı + Mini Engine doğrulaması ve her iki modda da kullanıcı onayı zorunluluğu.
+- [x] **CLI ve Web UI Tam Parite (`cmd/gort/validator_cli.go`, `internal/web/api_config.go`, `validator_ui.js`):**
+  - `./bin/gort validate [config.yaml]` komutu ve değerlendirme öncesi interaktif doğrulama/onarım döngüsü.
+  - Web UI'da `POST /api/configs/validate`, `POST /api/configs/autofix` uç noktaları ve `✓ Validate` interaktif modalı.

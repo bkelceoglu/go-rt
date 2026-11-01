@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -194,22 +195,26 @@ func (m *AssessmentManager) synthesizeForPluginSpecs(ctx context.Context, syn *p
 
 func (m *AssessmentManager) executeEvaluationRounds(ctx context.Context, cfg *domain.Config, cases []domain.TestCase) error {
 	judge := provider.BuildJudge(cfg.Judge)
+	var attacker domain.Provider
+	if strings.TrimSpace(cfg.Attacker.ID) != "" {
+		attacker = provider.BuildFromSpec(cfg.Attacker)
+	}
+	attacker, judge = provider.WrapSharedSequential(attacker, judge, cfg.SequentialSharedLLM)
 	evaluator := engine.NewEvaluator(m.db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
 	evaluator.SetVerbose(true)
 	exemptMap := m.loadExemptMap(ctx)
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 
 	for _, targetSpec := range cfg.Targets {
-		if err := m.evaluateTarget(ctx, cfg, evaluator, targetSpec, exemptMap, injectVar, cases); err != nil {
+		if err := m.evaluateTarget(ctx, cfg, evaluator, targetSpec, attacker, exemptMap, injectVar, cases); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *AssessmentManager) evaluateTarget(ctx context.Context, cfg *domain.Config, evaluator *engine.Evaluator, spec domain.ProviderSpec, exemptMap map[string]bool, injectVar string, cases []domain.TestCase) error {
+func (m *AssessmentManager) evaluateTarget(ctx context.Context, cfg *domain.Config, evaluator *engine.Evaluator, spec domain.ProviderSpec, attacker domain.Provider, exemptMap map[string]bool, injectVar string, cases []domain.TestCase) error {
 	target := provider.BuildFromSpec(spec)
-	attacker := provider.BuildFromSpec(cfg.Attacker)
 	expanded, err := strategy.ExpandForTarget(ctx, cases, cfg.Strategies, exemptMap, injectVar, target, attacker)
 	if err != nil {
 		return err

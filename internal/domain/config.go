@@ -2,20 +2,21 @@ package domain
 
 // Config represents the root configuration loaded from config.yaml.
 type Config struct {
-	Version        string         `json:"version" yaml:"version"`
-	Description    string         `json:"description" yaml:"description"`
-	Purpose        string         `json:"purpose" yaml:"purpose"`
-	PromptsDir     string         `json:"promptsDir" yaml:"promptsDir"`
-	PromptTemplate string         `json:"promptTemplate" yaml:"promptTemplate"`
-	InjectVar      string         `json:"injectVar" yaml:"injectVar"`
-	Datasets       []string       `json:"datasets,omitempty" yaml:"datasets,omitempty"`
-	Targets        []ProviderSpec `json:"targets" yaml:"targets"`
-	Attacker       ProviderSpec   `json:"attacker" yaml:"attacker"`
-	Judge          JudgeSpec      `json:"judge" yaml:"judge"`
-	Redteam        RedteamSpec    `json:"redteam" yaml:"redteam"`
-	Strategies     []StrategySpec `json:"strategies" yaml:"strategies"`
-	Storage        StorageSpec    `json:"storage" yaml:"storage"`
-	MaxConcurrency int            `json:"maxConcurrency" yaml:"maxConcurrency"`
+	Version             string         `json:"version" yaml:"version"`
+	Description         string         `json:"description" yaml:"description"`
+	Purpose             string         `json:"purpose" yaml:"purpose"`
+	PromptsDir          string         `json:"promptsDir" yaml:"promptsDir"`
+	PromptTemplate      string         `json:"promptTemplate" yaml:"promptTemplate"`
+	InjectVar           string         `json:"injectVar" yaml:"injectVar"`
+	Datasets            []string       `json:"datasets,omitempty" yaml:"datasets,omitempty"`
+	Targets             []ProviderSpec `json:"targets" yaml:"targets"`
+	Attacker            ProviderSpec   `json:"attacker" yaml:"attacker"`
+	Judge               JudgeSpec      `json:"judge" yaml:"judge"`
+	Redteam             RedteamSpec    `json:"redteam" yaml:"redteam"`
+	Strategies          []StrategySpec `json:"strategies" yaml:"strategies"`
+	Storage             StorageSpec    `json:"storage" yaml:"storage"`
+	MaxConcurrency      int            `json:"maxConcurrency" yaml:"maxConcurrency"`
+	SequentialSharedLLM bool           `json:"sequentialSharedLlm,omitempty" yaml:"sequentialSharedLlm,omitempty"`
 }
 
 // ProviderSpec defines connection and inference settings for a Target, Attacker, or Judge provider.
