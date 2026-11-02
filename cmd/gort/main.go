@@ -88,22 +88,36 @@ func sumPromptCounts(sets []store.DatasetSummary) int {
 }
 
 func dispatchParsedCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader) error {
+	if handled, err := dispatchCatalogInspect(parsed, db); handled {
+		return err
+	}
+	return dispatchOperationalCommand(parsed, db, in)
+}
+
+func dispatchCatalogInspect(parsed parsedCLI, db *store.SQLiteStore) (bool, error) {
 	switch parsed.Kind {
 	case cmdListDatasets:
 		if parsed.TargetArg != "" {
-			return inspectDatasetPrompts(db, parsed.TargetArg)
+			return true, inspectDatasetPrompts(db, parsed.TargetArg)
 		}
-		return printDatasetCatalog(db)
+		return true, printDatasetCatalog(db)
 	case cmdListPlugins:
 		if parsed.TargetArg != "" {
-			return inspectPluginDetail(db, parsed.TargetArg, parsed.AIGenerate, parsed.ConfigPath)
+			return true, inspectPluginDetail(db, parsed.TargetArg, parsed.AIGenerate, parsed.ConfigPath)
 		}
-		return printPluginCatalog(db)
+		return true, printPluginCatalog(db)
 	case cmdListStrategies:
 		if parsed.TargetArg != "" {
-			return inspectStrategyDetail(db, parsed.TargetArg)
+			return true, inspectStrategyDetail(db, parsed.TargetArg)
 		}
-		return printStrategyCatalog(db)
+		return true, printStrategyCatalog(db)
+	default:
+		return false, nil
+	}
+}
+
+func dispatchOperationalCommand(parsed parsedCLI, db *store.SQLiteStore, in io.Reader) error {
+	switch parsed.Kind {
 	case cmdListResults:
 		if parsed.TargetArg != "" {
 			return inspectEvalRunResults(db, parsed.TargetArg, parsed.Verbose)
