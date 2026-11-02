@@ -180,7 +180,7 @@ function renderRoleCardHTML(roleKey, title, spec, providers, liveModels, isJudge
       <div class="card-header">
         <span class="card-title">${title}</span>
         <div style="display:flex; gap:8px; align-items:center;">
-          <span class="health-badge" style="font-size:11px; padding:2px 8px; border-radius:4px; border:1px solid var(--border-color); color:var(--text-secondary);">○ Untested</span>
+          <span class="health-badge">○ Untested</span>
           <button type="button" class="btn btn-outline btn-test-conn" style="padding:2px 8px; font-size:11px;">⚡ Test Ping</button>
           ${removeIdx >= 0 ? `<button class="btn btn-outline btn-remove-target" data-idx="${removeIdx}">Remove</button>` : ""}
         </div>
@@ -276,12 +276,9 @@ function bindProviderCardEvents(root, spec, container, showToast, isJudge = fals
 
   if (testBtn) {
     testBtn.addEventListener("click", async () => {
+      healthBadge.className = "health-badge status-testing";
       healthBadge.textContent = "Testing...";
-      healthBadge.style.color = "var(--accent-amber)";
       try {
-        const miniCfg = {
-          targets: [{ id: spec.id || "test", baseUrl: spec.baseUrl, apiKey: spec.apiKey }],
-        };
         const rawYaml = `targets:\n  - id: ${JSON.stringify(spec.id || "test")}\n    baseUrl: ${JSON.stringify(spec.baseUrl || "")}\n    apiKey: ${JSON.stringify(spec.apiKey || "")}\n`;
         const res = await (await fetch("/api/configs/ping-providers", {
           method: "POST",
@@ -290,17 +287,17 @@ function bindProviderCardEvents(root, spec, container, showToast, isJudge = fals
         })).json();
         const first = (res.reachability && res.reachability[0]) || {};
         if (first.reachable) {
+          healthBadge.className = "health-badge status-accepted";
           healthBadge.textContent = `● ${first.message}`;
-          healthBadge.style.color = "var(--accent-emerald)";
-          showToast(`Endpoint reachable: ${spec.id || spec.baseUrl}`);
+          showToast(`Endpoint accepted: ${spec.id || spec.baseUrl}`);
         } else {
-          healthBadge.textContent = `○ ${first.message || "Unreachable"}`;
-          healthBadge.style.color = "var(--accent-crimson)";
-          showToast(`Endpoint check warning: ${first.message}`);
+          healthBadge.className = "health-badge status-refused";
+          healthBadge.textContent = `○ ${first.message || "Connection refused"}`;
+          showToast(`Endpoint connection refused: ${first.message}`);
         }
       } catch (err) {
-        healthBadge.textContent = "○ Check Error";
-        healthBadge.style.color = "var(--accent-crimson)";
+        healthBadge.className = "health-badge status-refused";
+        healthBadge.textContent = "○ Connection refused (Check error)";
       }
     });
   }

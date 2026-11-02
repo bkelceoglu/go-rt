@@ -63,12 +63,12 @@ function renderValidationModalContent(container, report, parsedCfg, showToast, o
          </div>
          <div style="display:flex; flex-direction:column; gap:6px;">
            ${reachability.map((r) => `
-             <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:6px 10px; border-radius:4px; background:var(--bg-surface);">
+             <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:6px 10px; border-radius:4px; background:var(--bg-surface); border-left:3px solid ${r.reachable ? "var(--success)" : "var(--danger)"};">
                <div>
-                 <strong style="color:${r.reachable ? "var(--accent-emerald)" : "var(--accent-crimson)"};">
-                   ${r.reachable ? "● Online" : "○ Unreachable"}
-                 </strong>
-                 <span style="margin-left:8px; font-weight:600;">[${escapeAttr(r.role)}]</span>
+                 <span class="health-badge ${r.reachable ? "status-accepted" : "status-refused"}" style="margin-right:6px;">
+                   ${r.reachable ? "● Accepted" : "○ Connection Refused"}
+                 </span>
+                 <span style="font-weight:600;">[${escapeAttr(r.role)}]</span>
                  <code style="margin-left:6px;">${escapeAttr(r.id)}</code>
                </div>
                <div style="color:var(--text-secondary); text-align:right;">
