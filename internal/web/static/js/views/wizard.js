@@ -108,19 +108,19 @@ function mountStep1General(body) {
 
 function mountStep2Providers(body, container, showToast) {
   const cfg = appState.config;
-  const models = [
-    ...(appState.catalog.localModels || []),
-    "ollama:chat:llama3.1:8b",
-    "vllm:chat:Qwen/Qwen2.5-7B-Instruct",
-    "localai:chat:qwen3-4b",
-    "openai:chat:gpt-4o-mini",
-    "webhook:http://localhost:9000/api/chat",
+  const providers = appState.catalog.providers || [
+    { type: "ollama", label: "Ollama (Local Daemon)", prefix: "ollama:chat:", defaultUrl: "http://localhost:11434" },
+    { type: "llamacpp", label: "llama.cpp Server", prefix: "llamacpp:chat:", defaultUrl: "http://localhost:8080" },
+    { type: "vllm", label: "vLLM / LiteLLM", prefix: "vllm:chat:", defaultUrl: "http://localhost:8000/v1" },
+    { type: "localai", label: "LocalAI", prefix: "localai:chat:", defaultUrl: "http://localhost:8090/v1" },
+    { type: "openai", label: "OpenAI / Cloud", prefix: "openai:chat:", defaultUrl: "https://api.openai.com/v1" },
+    { type: "webhook", label: "Custom Webhook API", prefix: "webhook:", defaultUrl: "http://localhost:9000/api/chat" },
   ];
-  const modelOptions = models.map((m) => `<option value="${escapeAttr(m)}">${escapeAttr(m)}</option>`).join("");
+  const liveModels = appState.catalog.localModels || [];
 
   cfg.targets = cfg.targets || [];
-  cfg.attacker = cfg.attacker || { id: "", baseUrl: "http://localhost:8080", think: false };
-  cfg.judge = cfg.judge || { id: "", baseUrl: "http://localhost:8080", think: false, notContains: [], rubric: "" };
+  cfg.attacker = cfg.attacker || { id: "", baseUrl: "", think: false };
+  cfg.judge = cfg.judge || { id: "", baseUrl: "", think: false, notContains: [], rubric: "" };
 
   body.innerHTML = `
     <div class="card">
@@ -130,8 +130,8 @@ function mountStep2Providers(body, container, showToast) {
       </div>
       <div id="targets-list"></div>
     </div>
-    ${renderRoleCardHTML("attacker", "Attacker LLM (Synthesizer & Multi-Turn Crescendo Driver)", cfg.attacker, modelOptions, false)}
-    ${renderRoleCardHTML("judge", "Judge LLM (Safety Rubric Evaluator)", cfg.judge, modelOptions, true)}
+    ${renderRoleCardHTML("attacker", "Attacker LLM (Synthesizer & Multi-Turn Crescendo Driver)", cfg.attacker, providers, liveModels, false)}
+    ${renderRoleCardHTML("judge", "Judge LLM (Safety Rubric Evaluator)", cfg.judge, providers, liveModels, true)}
   `;
 
   const targetsList = body.querySelector("#targets-list");
@@ -143,7 +143,7 @@ function mountStep2Providers(body, container, showToast) {
   } else {
     cfg.targets.forEach((t, idx) => {
       const wrapper = document.createElement("div");
-      wrapper.innerHTML = renderRoleCardHTML(`target-${idx}`, `Target #${idx + 1}`, t, modelOptions, false, idx);
+      wrapper.innerHTML = renderRoleCardHTML(`target-${idx}`, `Target #${idx + 1}`, t, providers, liveModels, false, idx);
       targetsList.appendChild(wrapper);
       bindProviderCardEvents(wrapper, t, container, showToast);
     });
@@ -151,9 +151,9 @@ function mountStep2Providers(body, container, showToast) {
 
   body.querySelector("#btn-add-target").addEventListener("click", () => {
     cfg.targets.push({
-      id: "llamacpp:chat:Qwen2.5-7B-Instruct",
+      id: "ollama:chat:model",
       label: `Target LLM #${cfg.targets.length + 1}`,
-      baseUrl: "http://localhost:8080",
+      baseUrl: "http://localhost:11434",
       temperature: 0.1,
       maxTokens: 512,
       think: false,
@@ -166,29 +166,43 @@ function mountStep2Providers(body, container, showToast) {
   bindProviderCardEvents(body.querySelector(`[data-role-card="judge"]`), cfg.judge, container, showToast, true);
 }
 
-function renderRoleCardHTML(roleKey, title, spec, modelOptions, isJudge, removeIdx = -1) {
+function renderRoleCardHTML(roleKey, title, spec, providers, liveModels, isJudge, removeIdx = -1) {
   const thinkVal = spec.think === true ? "true" : spec.think === false ? "false" : "omit";
+  const providerOptions = providers.map((p) => `
+    <option value="${escapeAttr(p.prefix)}" data-default-url="${escapeAttr(p.defaultUrl)}">
+      ${escapeAttr(p.label)} (${escapeAttr(p.defaultUrl)})
+    </option>
+  `).join("");
+  const liveOptions = (liveModels || []).map((m) => `<option value="${escapeAttr(m)}">${escapeAttr(m)}</option>`).join("");
+
   return `
     <div class="card" data-role-card="${roleKey}" style="background:var(--bg-elevated);">
       <div class="card-header">
         <span class="card-title">${title}</span>
-        ${removeIdx >= 0 ? `<button class="btn btn-outline btn-remove-target" data-idx="${removeIdx}">Remove</button>` : ""}
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="health-badge" style="font-size:11px; padding:2px 8px; border-radius:4px; border:1px solid var(--border-color); color:var(--text-secondary);">○ Untested</span>
+          <button type="button" class="btn btn-outline btn-test-conn" style="padding:2px 8px; font-size:11px;">⚡ Test Ping</button>
+          ${removeIdx >= 0 ? `<button class="btn btn-outline btn-remove-target" data-idx="${removeIdx}">Remove</button>` : ""}
+        </div>
       </div>
       <div class="form-grid">
         <div class="form-group">
-          <label>Quick Preset / Discovered Model</label>
-          <select class="input-select sel-preset">
-            <option value="">-- Choose Model Preset --</option>
-            ${modelOptions}
+          <label>Protocol / Runtime Type</label>
+          <select class="input-select sel-protocol">
+            <option value="">-- Select Protocol Template --</option>
+            ${providerOptions}
           </select>
         </div>
         <div class="form-group">
-          <label>Provider &amp; Model ID</label>
-          <input class="input-text inp-id" value="${escapeAttr(spec.id || "")}" />
+          <label>Provider &amp; Model ID (Editable)</label>
+          <input class="input-text inp-id" list="list-models-${roleKey}" value="${escapeAttr(spec.id || "")}" placeholder="e.g. ollama:chat:llama3.1:8b" />
+          <datalist id="list-models-${roleKey}">
+            ${liveOptions}
+          </datalist>
         </div>
         <div class="form-group">
-          <label>Base URL</label>
-          <input class="input-text inp-url" value="${escapeAttr(spec.baseUrl || "http://localhost:8080")}" />
+          <label>Base URL (Default filled, fully editable)</label>
+          <input class="input-text inp-url" value="${escapeAttr(spec.baseUrl || "")}" placeholder="e.g. http://localhost:11434" />
         </div>
       </div>
       <div class="form-grid">
@@ -238,22 +252,58 @@ function renderRoleCardHTML(roleKey, title, spec, modelOptions, isJudge, removeI
 
 function bindProviderCardEvents(root, spec, container, showToast, isJudge = false) {
   if (!root) return;
-  const presetSel = root.querySelector(".sel-preset");
+  const protoSel = root.querySelector(".sel-protocol");
   const idInp = root.querySelector(".inp-id");
   const urlInp = root.querySelector(".inp-url");
+  const testBtn = root.querySelector(".btn-test-conn");
+  const healthBadge = root.querySelector(".health-badge");
 
-  presetSel.addEventListener("change", () => {
-    if (!presetSel.value) return;
-    spec.id = presetSel.value;
-    idInp.value = presetSel.value;
-    if (presetSel.value.startsWith("llamacpp:")) spec.baseUrl = "http://localhost:8080";
-    if (presetSel.value.startsWith("ollama:")) spec.baseUrl = "http://localhost:11434";
-    if (presetSel.value.startsWith("vllm:")) spec.baseUrl = "http://localhost:8000";
-    if (presetSel.value.startsWith("localai:")) spec.baseUrl = "http://localhost:8090";
-    if (presetSel.value.startsWith("openai:")) spec.baseUrl = "https://api.openai.com/v1";
-    urlInp.value = spec.baseUrl;
-    notify();
-  });
+  if (protoSel) {
+    protoSel.addEventListener("change", () => {
+      const selected = protoSel.options[protoSel.selectedIndex];
+      if (!selected || !selected.value) return;
+      const prefix = selected.value;
+      const defaultUrl = selected.dataset.defaultUrl || "";
+      if (!idInp.value || idInp.value.includes(":")) {
+        idInp.value = prefix + "model";
+        spec.id = idInp.value;
+      }
+      urlInp.value = defaultUrl;
+      spec.baseUrl = defaultUrl;
+      notify();
+    });
+  }
+
+  if (testBtn) {
+    testBtn.addEventListener("click", async () => {
+      healthBadge.textContent = "Testing...";
+      healthBadge.style.color = "var(--accent-amber)";
+      try {
+        const miniCfg = {
+          targets: [{ id: spec.id || "test", baseUrl: spec.baseUrl, apiKey: spec.apiKey }],
+        };
+        const rawYaml = `targets:\n  - id: ${JSON.stringify(spec.id || "test")}\n    baseUrl: ${JSON.stringify(spec.baseUrl || "")}\n    apiKey: ${JSON.stringify(spec.apiKey || "")}\n`;
+        const res = await (await fetch("/api/configs/ping-providers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawYaml }),
+        })).json();
+        const first = (res.reachability && res.reachability[0]) || {};
+        if (first.reachable) {
+          healthBadge.textContent = `● ${first.message}`;
+          healthBadge.style.color = "var(--accent-emerald)";
+          showToast(`Endpoint reachable: ${spec.id || spec.baseUrl}`);
+        } else {
+          healthBadge.textContent = `○ ${first.message || "Unreachable"}`;
+          healthBadge.style.color = "var(--accent-crimson)";
+          showToast(`Endpoint check warning: ${first.message}`);
+        }
+      } catch (err) {
+        healthBadge.textContent = "○ Check Error";
+        healthBadge.style.color = "var(--accent-crimson)";
+      }
+    });
+  }
 
   idInp.addEventListener("input", (e) => { spec.id = e.target.value; notify(); });
   urlInp.addEventListener("input", (e) => { spec.baseUrl = e.target.value; notify(); });

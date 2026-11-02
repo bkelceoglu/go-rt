@@ -101,3 +101,7 @@
 - [x] **CLI ve Web UI Tam Parite (`cmd/gort/validator_cli.go`, `internal/web/api_config.go`, `validator_ui.js`):**
   - `./bin/gort validate [config.yaml]` komutu ve değerlendirme öncesi interaktif doğrulama/onarım döngüsü.
   - Web UI'da `POST /api/configs/validate`, `POST /api/configs/autofix` uç noktaları ve `✓ Validate` interaktif modalı.
+- [x] **Dinamik Provider Protokolleri & Pre-flight Uç Nokta Erişim Doğrulaması (`internal/config/reachability.go`, `api_catalog.go`, `wizard.js`):**
+  - Hardcoded model isimlerinin (`Qwen2.5-7B`, `llama3.1:8b`, `gpt-4o-mini`) ve `~/.models` klasör varsayımının kod tabanından tamamen kaldırılması.
+  - Dinamik provider şablonları (`ollama`, `llamacpp`, `vllm`, `localai`, `openai`, `webhook`) ve resmi varsayılan portlarla otomatik dolan ancak kullanıcı tarafından %100 düzenlenebilir Base URL mimarisi.
+  - Doğrulama/Kaydetme öncesinde `CheckProvidersReachability` ile hem CLI (`gort validate`) hem Web UI (`⚡ Test Ping` & `✓ Validate`) üzerinden canlı network socket ve kimlik doğrulama kontrolleri (`● Online (HTTP 200)` / `○ Unreachable`).

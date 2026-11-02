@@ -37,13 +37,14 @@ type CatalogSnapshot struct {
 
 // ValidationReport summarizes all format, structure, and logic findings for a YAML config.
 type ValidationReport struct {
-	Valid                       bool              `json:"valid"`
-	SyntaxError                 bool              `json:"syntaxError"`
-	NeedsAttackerResolution     bool              `json:"needsAttackerResolution"`
-	AttackerDependentStrategies []string          `json:"attackerDependentStrategies,omitempty"`
-	CanUseJudgeAsAttacker       bool              `json:"canUseJudgeAsAttacker"`
-	JudgeID                     string            `json:"judgeId,omitempty"`
-	Issues                      []ValidationIssue `json:"issues"`
+	Valid                       bool                         `json:"valid"`
+	SyntaxError                 bool                         `json:"syntaxError"`
+	NeedsAttackerResolution     bool                         `json:"needsAttackerResolution"`
+	AttackerDependentStrategies []string                     `json:"attackerDependentStrategies,omitempty"`
+	CanUseJudgeAsAttacker       bool                         `json:"canUseJudgeAsAttacker"`
+	JudgeID                     string                       `json:"judgeId,omitempty"`
+	Issues                      []ValidationIssue            `json:"issues"`
+	Reachability                []ProviderReachabilityResult `json:"reachability,omitempty"`
 }
 
 var attackerRequiredStrategies = map[string]bool{

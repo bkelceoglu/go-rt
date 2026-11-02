@@ -36,14 +36,25 @@ export async function saveConfigFile(filename, rawYaml) {
   return data;
 }
 
-export async function validateConfig(rawYaml) {
+export async function validateConfig(rawYaml, checkEndpoint = false) {
   const res = await fetch("/api/configs/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rawYaml, checkEndpoint }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to validate configuration");
+  return data;
+}
+
+export async function pingProviders(rawYaml) {
+  const res = await fetch("/api/configs/ping-providers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rawYaml }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to validate configuration");
+  if (!res.ok) throw new Error(data.error || "Failed to ping providers");
   return data;
 }
 

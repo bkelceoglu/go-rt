@@ -1,23 +1,35 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/caveman/go-rt/internal/dataset"
 	"github.com/caveman/go-rt/internal/domain"
 	"github.com/caveman/go-rt/internal/store"
 )
 
+// ProviderProtocolTemplate describes an LLM runtime provider format and default connection URL.
+type ProviderProtocolTemplate struct {
+	Type        string `json:"type"`
+	Label       string `json:"label"`
+	Prefix      string `json:"prefix"`
+	DefaultURL  string `json:"defaultUrl"`
+	Placeholder string `json:"placeholder"`
+}
+
 type catalogResponse struct {
-	Plugins     []store.PluginRecord   `json:"plugins"`
-	Collections map[string][]string    `json:"collections"`
-	Datasets    []store.DatasetSummary `json:"datasets"`
-	Strategies  []store.StrategyRecord `json:"strategies"`
-	LocalModels []string               `json:"localModels"`
+	Plugins     []store.PluginRecord       `json:"plugins"`
+	Collections map[string][]string        `json:"collections"`
+	Datasets    []store.DatasetSummary     `json:"datasets"`
+	Strategies  []store.StrategyRecord     `json:"strategies"`
+	Providers   []ProviderProtocolTemplate `json:"providers"`
+	LocalModels []string                   `json:"localModels"`
 }
 
 func (s *Server) handleGetCatalog(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +43,8 @@ func (s *Server) handleGetCatalog(w http.ResponseWriter, r *http.Request) {
 		Collections: cols,
 		Datasets:    datasets,
 		Strategies:  strategies,
-		LocalModels: discoverLocalModels(),
+		Providers:   supportedProviderTemplates(),
+		LocalModels: discoverLiveLocalModels(r.Context()),
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -89,31 +102,101 @@ func sanitizeDatasetIdentifier(raw string) string {
 	return filepath.Base(clean)
 }
 
-func discoverLocalModels() []string {
-	models := []string{
-		"llamacpp:chat:Qwen2.5-7B-Instruct",
-		"llamacpp:chat:Llama-3.2-3B-Instruct",
+func supportedProviderTemplates() []ProviderProtocolTemplate {
+	return []ProviderProtocolTemplate{
+		{
+			Type:        "ollama",
+			Label:       "Ollama (Local LLM Daemon)",
+			Prefix:      "ollama:chat:",
+			DefaultURL:  "http://localhost:11434",
+			Placeholder: "ollama:chat:llama3.1:8b",
+		},
+		{
+			Type:        "llamacpp",
+			Label:       "llama.cpp Server / GGUF Runtime",
+			Prefix:      "llamacpp:chat:",
+			DefaultURL:  "http://localhost:8080",
+			Placeholder: "llamacpp:chat:model",
+		},
+		{
+			Type:        "vllm",
+			Label:       "vLLM / LiteLLM / SGLang",
+			Prefix:      "vllm:chat:",
+			DefaultURL:  "http://localhost:8000/v1",
+			Placeholder: "vllm:chat:Qwen/Qwen2.5-7B-Instruct",
+		},
+		{
+			Type:        "localai",
+			Label:       "LocalAI",
+			Prefix:      "localai:chat:",
+			DefaultURL:  "http://localhost:8090/v1",
+			Placeholder: "localai:chat:model",
+		},
+		{
+			Type:        "openai",
+			Label:       "OpenAI / Azure / Cloud Hosted",
+			Prefix:      "openai:chat:",
+			DefaultURL:  "https://api.openai.com/v1",
+			Placeholder: "openai:chat:gpt-4o-mini",
+		},
+		{
+			Type:        "webhook",
+			Label:       "Custom HTTP Webhook API",
+			Prefix:      "webhook:",
+			DefaultURL:  "http://localhost:9000/api/chat",
+			Placeholder: "webhook:http://localhost:9000/api/chat",
+		},
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return models
-	}
-	return appendDiscoveredGGUFs(models, filepath.Join(home, ".models"))
 }
 
-func appendDiscoveredGGUFs(existing []string, dir string) []string {
-	matches, _ := filepath.Glob(filepath.Join(dir, "*.gguf"))
-	seen := make(map[string]bool, len(existing))
-	for _, m := range existing {
-		seen[m] = true
+func discoverLiveLocalModels(ctx context.Context) []string {
+	var discovered []string
+	client := &http.Client{Timeout: 800 * time.Millisecond}
+	discovered = appendOllamaLiveModels(ctx, client, discovered)
+	discovered = appendLlamaCppLiveModels(ctx, client, discovered)
+	return discovered
+}
+
+func appendOllamaLiveModels(ctx context.Context, client *http.Client, out []string) []string {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:11434/api/tags", nil)
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return out
 	}
-	for _, p := range matches {
-		base := strings.TrimSuffix(filepath.Base(p), ".gguf")
-		id := "llamacpp:chat:" + base
-		if !seen[id] {
-			seen[id] = true
-			existing = append(existing, id)
+	defer resp.Body.Close()
+	var payload struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err == nil {
+		for _, m := range payload.Models {
+			if m.Name != "" {
+				out = append(out, "ollama:chat:"+m.Name)
+			}
 		}
 	}
-	return existing
+	return out
+}
+
+func appendLlamaCppLiveModels(ctx context.Context, client *http.Client, out []string) []string {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:8080/v1/models", nil)
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return out
+	}
+	defer resp.Body.Close()
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err == nil {
+		for _, d := range payload.Data {
+			if d.ID != "" {
+				out = append(out, "llamacpp:chat:"+d.ID)
+			}
+		}
+	}
+	return out
 }

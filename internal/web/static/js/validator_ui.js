@@ -15,7 +15,7 @@ export async function openValidationModal(showToast, onValidatedCallback = null)
 
   const rawYaml = document.getElementById("yaml-preview-editor").value;
   try {
-    const res = await validateConfig(rawYaml);
+    const res = await validateConfig(rawYaml, true);
     renderValidationModalContent(body, res.report, res.config, showToast, onValidatedCallback);
     return res.report.valid && (res.report.issues || []).length === 0;
   } catch (err) {
@@ -42,6 +42,7 @@ export function bindValidationModalEvents(showToast, refreshMainView) {
 
 function renderValidationModalContent(container, report, parsedCfg, showToast, onValidatedCallback) {
   const issues = report.issues || [];
+  const reachability = report.reachability || [];
   const isClean = report.valid && issues.length === 0 && !report.needsAttackerResolution;
 
   const statusHtml = isClean
@@ -53,6 +54,32 @@ function renderValidationModalContent(container, report, parsedCfg, showToast, o
          <div><strong style="color:var(--accent-amber);">⚠ ${issues.length} VALIDATION / LOGIC ISSUE(S) FOUND</strong> — Review findings below or use Auto-Fix.</div>
          <button id="btn-reval-now" class="btn btn-secondary">↻ Re-Validate</button>
        </div>`;
+
+  const reachabilityHtml = reachability.length > 0
+    ? `<div class="card" style="padding:12px; border:1px solid var(--border-subtle); background:var(--bg-elevated);">
+         <div style="font-weight:700; margin-bottom:6px; display:flex; justify-content:space-between;">
+           <span>Pre-flight LLM Endpoint Reachability Checks</span>
+           <span style="font-size:11px; color:var(--text-secondary);">Verified live network socket connection</span>
+         </div>
+         <div style="display:flex; flex-direction:column; gap:6px;">
+           ${reachability.map((r) => `
+             <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:6px 10px; border-radius:4px; background:var(--bg-surface);">
+               <div>
+                 <strong style="color:${r.reachable ? "var(--accent-emerald)" : "var(--accent-crimson)"};">
+                   ${r.reachable ? "● Online" : "○ Unreachable"}
+                 </strong>
+                 <span style="margin-left:8px; font-weight:600;">[${escapeAttr(r.role)}]</span>
+                 <code style="margin-left:6px;">${escapeAttr(r.id)}</code>
+               </div>
+               <div style="color:var(--text-secondary); text-align:right;">
+                 <span>${escapeAttr(r.message)}</span>
+                 ${r.baseUrl ? `<span style="margin-left:6px; font-family:monospace; font-size:11px;">(${escapeAttr(r.baseUrl)})</span>` : ""}
+               </div>
+             </div>
+           `).join("")}
+         </div>
+       </div>`
+    : "";
 
   const issuesHtml = issues.length > 0
     ? `<div style="display:flex; flex-direction:column; gap:8px;">
@@ -88,7 +115,7 @@ function renderValidationModalContent(container, report, parsedCfg, showToast, o
        </div>`
     : "";
 
-  container.innerHTML = statusHtml + issuesHtml + logicHtml + autoFixHtml;
+  container.innerHTML = statusHtml + reachabilityHtml + issuesHtml + logicHtml + autoFixHtml;
   wireModalActionButtons(container, showToast, onValidatedCallback);
 }
 

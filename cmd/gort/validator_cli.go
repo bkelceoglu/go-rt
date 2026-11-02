@@ -33,10 +33,28 @@ func validateSingleIteration(configPath string, cat *config.CatalogSnapshot, r *
 	}
 	rep, cfg := config.ValidateYAML(raw, cat)
 	printValidationReport(configPath, rep)
-	if rep.Valid && len(rep.Issues) == 0 && !rep.NeedsAttackerResolution {
-		return cfg, true, nil
+	if !rep.Valid || len(rep.Issues) > 0 || rep.NeedsAttackerResolution {
+		return handleInteractiveRepair(configPath, raw, rep, cfg, cat, r)
 	}
-	return handleInteractiveRepair(configPath, raw, rep, cfg, cat, r)
+	checkAndPrintEndpointsHealth(cfg)
+	return cfg, true, nil
+}
+
+func checkAndPrintEndpointsHealth(cfg domain.Config) {
+	results := config.CheckProvidersReachability(context.Background(), cfg)
+	if len(results) == 0 {
+		return
+	}
+	fmt.Printf("\n%s Pre-flight LLM Endpoint Reachability:\n", ui.PrefixGort())
+	for _, res := range results {
+		badge := ui.Badge("PASS")
+		if !res.Reachable {
+			badge = ui.Badge("FAIL")
+		}
+		fmt.Printf("  %s %-12s | %-32s | %s (%s)\n",
+			badge, ui.Bold(res.Role), ui.Cyan(res.ID), ui.Dim(res.BaseURL), res.Message)
+	}
+	fmt.Println()
 }
 
 func printValidationReport(configPath string, rep config.ValidationReport) {

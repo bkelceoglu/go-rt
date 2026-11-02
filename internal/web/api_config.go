@@ -64,7 +64,8 @@ func (s *Server) handleLoadConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type validateConfigRequest struct {
-	RawYAML string `json:"rawYaml"`
+	RawYAML       string `json:"rawYaml"`
+	CheckEndpoint bool   `json:"checkEndpoint"`
 }
 
 func (s *Server) handleValidateConfig(w http.ResponseWriter, r *http.Request) {
@@ -75,10 +76,28 @@ func (s *Server) handleValidateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	cat := plugin.BuildCatalogSnapshot(r.Context(), s.db)
 	rep, cfg := config.ValidateYAML([]byte(req.RawYAML), cat)
+	if req.CheckEndpoint {
+		rep.Reachability = config.CheckProvidersReachability(r.Context(), cfg)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"report": rep,
 		"config": cfg,
 	})
+}
+
+type pingProvidersRequest struct {
+	RawYAML string `json:"rawYaml"`
+}
+
+func (s *Server) handlePingProviders(w http.ResponseWriter, r *http.Request) {
+	var req pingProvidersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	_, cfg := config.ValidateYAML([]byte(req.RawYAML), nil)
+	results := config.CheckProvidersReachability(r.Context(), cfg)
+	writeJSON(w, http.StatusOK, map[string]any{"reachability": results})
 }
 
 type autoFixConfigRequest struct {
