@@ -85,12 +85,19 @@ type TokenUsage struct {
 	Requests   int `json:"requests"`
 }
 
+// Message represents a single role-attributed message in a chat conversation.
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // PromptRequest encapsulates the rendered prompt and execution context sent to a Provider.
 type PromptRequest struct {
-	Prompt    string   `json:"prompt"`
-	Vars      Vars     `json:"vars,omitempty"`
-	SessionID string   `json:"sessionId,omitempty"`
-	TestCase  TestCase `json:"-"`
+	Prompt    string    `json:"prompt"`
+	Messages  []Message `json:"messages,omitempty"`
+	Vars      Vars      `json:"vars,omitempty"`
+	SessionID string    `json:"sessionId,omitempty"`
+	TestCase  TestCase  `json:"-"`
 }
 
 // ProviderResponse contains the model or target output, latency, and token metrics.

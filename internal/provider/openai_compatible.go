@@ -65,12 +65,9 @@ func (p *OpenAICompatibleProvider) Call(ctx context.Context, req domain.PromptRe
 }
 
 func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) ([]byte, error) {
-	content := applyThinkDirective(req.Prompt, p.spec.Think)
 	payload := map[string]any{
-		"model": p.modelName,
-		"messages": []map[string]string{
-			{"role": "user", "content": content},
-		},
+		"model":    p.modelName,
+		"messages": buildOpenAIMessages(req, p.spec.Think),
 	}
 	if p.spec.Temp > 0 {
 		payload["temperature"] = p.spec.Temp
@@ -79,6 +76,22 @@ func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) 
 		payload["max_tokens"] = p.spec.MaxToks
 	}
 	return json.Marshal(payload)
+}
+
+func buildOpenAIMessages(req domain.PromptRequest, think *bool) []domain.Message {
+	if len(req.Messages) > 0 {
+		msgs := make([]domain.Message, len(req.Messages))
+		copy(msgs, req.Messages)
+		lastIdx := len(msgs) - 1
+		if msgs[lastIdx].Role == "user" {
+			msgs[lastIdx].Content = applyThinkDirective(msgs[lastIdx].Content, think)
+		}
+		return msgs
+	}
+	content := applyThinkDirective(req.Prompt, think)
+	return []domain.Message{
+		{Role: "user", Content: content},
+	}
 }
 
 func applyThinkDirective(prompt string, think *bool) string {

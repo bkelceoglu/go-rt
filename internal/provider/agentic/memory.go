@@ -82,6 +82,18 @@ func (m *ConversationMemory) FormatTranscript() string {
 	return strings.TrimSpace(sb.String())
 }
 
+// BuildMessages converts active dialogue turns into structured role-based chat messages.
+func (m *ConversationMemory) BuildMessages(nextPrompt string) []domain.Message {
+	turns := m.ActiveTurns()
+	msgs := make([]domain.Message, 0, len(turns)*2+1)
+	for _, t := range turns {
+		msgs = append(msgs, domain.Message{Role: "user", Content: t.Prompt})
+		msgs = append(msgs, domain.Message{Role: "assistant", Content: t.Output})
+	}
+	msgs = append(msgs, domain.Message{Role: "user", Content: nextPrompt})
+	return msgs
+}
+
 // BuildContextualPrompt combines prior active turns with the current user message for stateless providers.
 func (m *ConversationMemory) BuildContextualPrompt(nextPrompt string) string {
 	transcript := m.FormatTranscript()

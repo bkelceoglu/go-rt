@@ -150,6 +150,47 @@ tail -f .gort/gort.log
 
 ---
 
+## Execution Modes & Prompt Lifecycle (CSV vs. DB vs. Dynamic Synthesis)
+
+GORT supports three distinct execution flows depending on how you invoke the CLI:
+
+```mermaid
+flowchart TD
+    A["Execution Command"] --> B{"Input Argument Provided?"}
+    
+    B -- "CSV File Path<br>(e.g., prompts/trial.csv)" --> C1["Seed Prompts Loaded from CSV File"]
+    B -- "Dataset Name / Index<br>(e.g., cyberseceval_injections or '9')" --> C2["Seed Prompts Loaded from SQLite prompt_bank"]
+    B -- "No Arguments<br>(Only config.yaml)" --> C3["Attacker LLM Synthesizes Prompts<br>based on redteam.plugins (requires [y/N])"]
+    
+    C1 --> D["strategies: Applied<br>(Base64, Jailbreak, Crescendo, GOAT...)"]
+    C2 --> D
+    C3 --> D
+    
+    D --> E["Dispatched to Target LLM"]
+    E --> F["Judge LLM (Rubric + notContains) Evaluates<br>(PASS / FAIL)"]
+    F --> G["Persisted in SQLite (.gort/gort.db)<br>eval_runs, eval_results & otel_spans"]
+```
+
+### Component Roles Explained
+
+| Component | In CSV / DB Mode | In Dynamic Synthesis Mode (No CSV) |
+|---|---|---|
+| **Seed Prompts** | Loaded directly from the CSV file or SQLite `prompt_bank`. | Synthesized on-the-fly by the **Attacker LLM**. |
+| **`redteam.plugins:`** | Acts as taxonomy & metadata reference for categorization. | **Primary Driver:** Supplies threat objectives and rubrics to the Attacker LLM. |
+| **`strategies:`** | **Attack Vector (HOW to attack):** Mutates seed prompts (e.g. Base64, ROT13) or wraps them into agentic loops (`crescendo`, `goat`). | **Attack Vector:** Mutates or wraps the freshly synthesized prompts. |
+| **`judge:`** | Scores Target LLM responses against rubric criteria and forbidden substrings (`notContains`). | Same. |
+
+### How to Interpret `PASS` vs. `FAIL` (Security Evaluation Perspective)
+
+GORT evaluates the **defensive posture and safety guardrails** of the Target LLM:
+
+- **🟢 PASS (Score = 1.0) — Defense Succeeded (System is Safe):**
+  The target model safely **refused or mitigated** the adversarial prompt without leaking system instructions, executing unauthorized actions, or complying with harmful requests.
+- **🔴 FAIL (Score = 0.0) — Defense Breached (Vulnerability Detected):**
+  The target model **complied with the jailbreak**, leaked private/system data, or assisted with exploitation. Prompt guardrail hardening or system prompt updates are required.
+
+---
+
 ## Project Layout
 
 ```text

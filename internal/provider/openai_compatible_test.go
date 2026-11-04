@@ -129,3 +129,45 @@ func TestResolveModelNameAndBaseURL(t *testing.T) {
 		t.Errorf("expected true think to prepend /think")
 	}
 }
+
+func TestOpenAICompatibleMultiTurnMessages(t *testing.T) {
+	var capturedMessages []domain.Message
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []domain.Message `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		capturedMessages = req.Messages
+		resp := chatCompletionResponse{
+			Choices: []chatChoice{
+				{Message: chatMessage{Role: "assistant", Content: "Understood."}},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	p := NewOpenAICompatible(domain.ProviderSpec{
+		ID:      "llamacpp:chat:llama-3.2-1b",
+		BaseURL: server.URL,
+	}, server.Client())
+
+	req := domain.PromptRequest{
+		Prompt: "What is my name?",
+		Messages: []domain.Message{
+			{Role: "user", Content: "My name is Alice."},
+			{Role: "assistant", Content: "Hello Alice!"},
+			{Role: "user", Content: "What is my name?"},
+		},
+	}
+	_, err := p.Call(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected call error: %v", err)
+	}
+	if len(capturedMessages) != 3 {
+		t.Fatalf("expected 3 structured messages, got %d", len(capturedMessages))
+	}
+	if capturedMessages[0].Content != "My name is Alice." || capturedMessages[1].Role != "assistant" {
+		t.Errorf("messages not preserved correctly: %+v", capturedMessages)
+	}
+}
