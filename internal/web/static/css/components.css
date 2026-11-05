@@ -764,6 +764,60 @@
 .terminal-dot.active {
   background-color: #5db87a;
   box-shadow: 0 0 8px rgba(93, 184, 122, 0.8);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(93, 184, 122, 0.6);
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.65;
+    box-shadow: 0 0 14px rgba(93, 184, 122, 1);
+  }
+}
+
+.terminal-live-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #5db87a;
+  background: rgba(93, 184, 122, 0.12);
+  border: 1px solid rgba(93, 184, 122, 0.35);
+  border-radius: 12px;
+  padding: 2px 8px;
+  margin-left: 12px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: gort-spin 0.75s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.spinner-inline.spinner-accent {
+  border-color: rgba(93, 184, 122, 0.25);
+  border-top-color: #5db87a;
+}
+
+@keyframes gort-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .terminal-dot.idle {

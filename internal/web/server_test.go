@@ -3,6 +3,7 @@ package web_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -239,6 +240,7 @@ func verifyAssessmentAndLogEndpoints(t *testing.T, baseURL string) {
 	verifyAssessmentStopWhenIdle(t, baseURL)
 	verifyLogsTailEndpoint(t, baseURL)
 	verifyAssessmentStartInvalid(t, baseURL)
+	verifyAssessmentStartUnreachableTarget(t, baseURL)
 }
 
 func verifyAssessmentStatusInitial(t *testing.T, baseURL string) {
@@ -283,6 +285,20 @@ func verifyAssessmentStartInvalid(t *testing.T, baseURL string) {
 	resp, err := http.Post(baseURL+"/api/assessments/start", "application/json", body)
 	if err != nil || resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 400 for non-existent config, got status=%v err=%v", resp, err)
+	}
+	resp.Body.Close()
+}
+
+func verifyAssessmentStartUnreachableTarget(t *testing.T, baseURL string) {
+	yamlContent := `version: "1.0"
+targets:
+  - id: custom:mock
+    baseUrl: http://127.0.0.1:59998
+`
+	body := strings.NewReader(fmt.Sprintf(`{"rawYaml": %q}`, yamlContent))
+	resp, err := http.Post(baseURL+"/api/assessments/start", "application/json", body)
+	if err != nil || resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for unreachable target, got status=%v err=%v", resp, err)
 	}
 	resp.Body.Close()
 }

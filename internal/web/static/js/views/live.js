@@ -94,6 +94,9 @@ function buildLiveHTML() {
         <div class="terminal-title">
           <span id="terminal-dot" class="terminal-dot idle"></span>
           <span>Live Console Stream (.gort/gort.log)</span>
+          <span id="terminal-stream-badge" class="terminal-live-badge hidden">
+            <span class="spinner-inline spinner-accent"></span> Attack Active
+          </span>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
           <input
@@ -165,7 +168,13 @@ async function populateDatasets() {
 async function onStartAssessment() {
   const configSel = document.getElementById("live-config-select").value;
   const datasetSel = document.getElementById("live-dataset-select").value;
+  const startBtn = document.getElementById("btn-start-live");
   const payload = { dataset: datasetSel };
+
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.innerHTML = '<span class="spinner-inline"></span> Checking...';
+  }
 
   try {
     let yamlToCheck = "";
@@ -177,10 +186,24 @@ async function onStartAssessment() {
       yamlToCheck = loaded.rawYaml;
       payload.configFile = configSel;
     }
-    const valRes = await validateConfig(yamlToCheck);
+    const valRes = await validateConfig(yamlToCheck, true);
     if (!valRes.report.valid || valRes.report.needsAttackerResolution) {
       document.getElementById("yaml-preview-editor").value = yamlToCheck;
       await openValidationModal(showToastFn);
+      resetStartButton();
+      return;
+    }
+
+    const unreachable = (valRes.report.reachability || []).filter(
+      (r) => r.role.startsWith("target") && !r.reachable
+    );
+    if (unreachable.length > 0) {
+      const details = unreachable.map((t) => `${t.id} (${t.baseUrl}): ${t.message}`).join("; ");
+      showToastFn(`Pre-flight check failed: Target offline (${details})`);
+      appendLog(`[ERROR] Pre-flight reachability check failed! Target server is unreachable.`);
+      appendLog(`[ERROR] Details: ${details}`);
+      appendLog(`[HINT] Start your target runtime (e.g. 'llama-server' or Ollama) before launching.`);
+      resetStartButton();
       return;
     }
 
@@ -190,6 +213,16 @@ async function onStartAssessment() {
     await refreshStatus();
   } catch (err) {
     showToastFn(`Launch failed: ${err.message}`);
+    appendLog(`[ERROR] Launch failed: ${err.message}`);
+    resetStartButton();
+  }
+}
+
+function resetStartButton() {
+  const startBtn = document.getElementById("btn-start-live");
+  if (startBtn) {
+    startBtn.disabled = false;
+    startBtn.innerHTML = "▶ Launch Attack";
   }
 }
 
@@ -246,22 +279,29 @@ function updateButtonsAndPill(st) {
   const stopBtn = document.getElementById("btn-stop-live");
   const pill = document.getElementById("live-status-pill");
   const dot = document.getElementById("terminal-dot");
+  const streamBadge = document.getElementById("terminal-stream-badge");
 
   startBtn.disabled = st.running;
   stopBtn.disabled = !st.running;
 
   if (st.running) {
+    startBtn.innerHTML = '<span class="spinner-inline"></span> Running...';
     pill.className = "pill pill-success";
-    pill.textContent = "Status: Running Attack";
+    pill.innerHTML = '<span class="spinner-inline"></span> Status: Running Attack...';
     dot.className = "terminal-dot active";
+    if (streamBadge) streamBadge.classList.remove("hidden");
   } else if (st.errorMessage) {
+    startBtn.innerHTML = "▶ Launch Attack";
     pill.className = "pill pill-danger";
     pill.textContent = `Status: Error (${st.errorMessage})`;
     dot.className = "terminal-dot idle";
+    if (streamBadge) streamBadge.classList.add("hidden");
   } else {
+    startBtn.innerHTML = "▶ Launch Attack";
     pill.className = "pill pill-info";
     pill.textContent = "Status: Idle";
     dot.className = "terminal-dot idle";
+    if (streamBadge) streamBadge.classList.add("hidden");
   }
 }
 

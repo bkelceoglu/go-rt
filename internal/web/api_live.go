@@ -18,20 +18,20 @@ import (
 )
 
 type startAssessmentRequest struct {
-	ConfigFile string `json:"configFile"`
-	Dataset    string `json:"dataset"`
-	RawYAML    string `json:"rawYaml"`
+	ConfigFile      string `json:"configFile"`
+	Dataset         string `json:"dataset"`
+	RawYAML         string `json:"rawYaml"`
+	SkipHealthCheck bool   `json:"skipHealthCheck,omitempty"`
 }
 
 func (s *Server) handleStartAssessment(w http.ResponseWriter, r *http.Request) {
-	req, err := decodeStartAssessmentRequest(r)
+	req, cfg, err := s.extractStartAssessmentParams(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	cfg, err := s.resolveAssessmentConfig(req)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "config error: "+err.Error())
+	if err := validateTargetEndpoints(r.Context(), cfg, req.SkipHealthCheck); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
 	if err := s.manager.Start(cfg, req.Dataset); err != nil {
@@ -39,6 +39,31 @@ func (s *Server) handleStartAssessment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.respondStartedAssessment(w)
+}
+
+func (s *Server) extractStartAssessmentParams(r *http.Request) (startAssessmentRequest, *domain.Config, error) {
+	req, err := decodeStartAssessmentRequest(r)
+	if err != nil {
+		return req, nil, err
+	}
+	cfg, err := s.resolveAssessmentConfig(req)
+	if err != nil {
+		return req, nil, fmt.Errorf("config error: %w", err)
+	}
+	return req, cfg, nil
+}
+
+func validateTargetEndpoints(ctx context.Context, cfg *domain.Config, skip bool) error {
+	if skip || cfg == nil {
+		return nil
+	}
+	results := config.CheckProvidersReachability(ctx, *cfg)
+	for _, res := range results {
+		if strings.HasPrefix(res.Role, "target") && !res.Reachable {
+			return fmt.Errorf("target '%s' (%s) unreachable: %s", res.ID, res.BaseURL, res.Message)
+		}
+	}
+	return nil
 }
 
 func decodeStartAssessmentRequest(r *http.Request) (startAssessmentRequest, error) {
