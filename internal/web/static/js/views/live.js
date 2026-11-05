@@ -150,9 +150,11 @@ async function populateDatasets() {
     const data = await fetchCatalog();
     const sel = document.getElementById("live-dataset-select");
     (data.datasets || []).forEach((d) => {
+      const name = d.datasetName || d.DatasetName || d.name || "";
+      const count = d.promptCount ?? d.PromptCount ?? d.prompt_count ?? 0;
       const opt = document.createElement("option");
-      opt.value = d.name;
-      opt.textContent = `Dataset: ${d.name} (${d.prompt_count} prompts)`;
+      opt.value = name;
+      opt.textContent = `Dataset: ${name} (${count} prompts)`;
       sel.appendChild(opt);
     });
   } catch (err) {
