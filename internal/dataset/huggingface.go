@@ -3,9 +3,9 @@ package dataset
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/caveman/go-rt/internal/domain"
@@ -29,7 +29,7 @@ func fetchHFSource(ctx context.Context, promptsDir string, src store.DatasetSour
 }
 
 func fetchHFRowsPages(ctx context.Context, src store.DatasetSourceRecord, pages int) []domain.DatasetRecord {
-	var all []domain.DatasetRecord
+	all := []domain.DatasetRecord{}
 	for page := range pages {
 		endpoint := buildHFRowsURL(src, page*100, 100)
 		body, err := fetchURL(ctx, endpoint)
@@ -46,8 +46,8 @@ func buildHFRowsURL(src store.DatasetSourceRecord, offset, length int) string {
 	q.Set("dataset", src.URLOrRepo)
 	q.Set("config", src.HFConfig)
 	q.Set("split", src.HFSplit)
-	q.Set("offset", fmt.Sprintf("%d", offset))
-	q.Set("length", fmt.Sprintf("%d", length))
+	q.Set("offset", strconv.Itoa(offset))
+	q.Set("length", strconv.Itoa(length))
 	return hfRowsEndpoint + "?" + q.Encode()
 }
 
@@ -56,16 +56,24 @@ func decodeHFRows(body string, src store.DatasetSourceRecord) []domain.DatasetRe
 	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
 		return nil
 	}
-	var out []domain.DatasetRecord
+	out := make([]domain.DatasetRecord, 0, len(parsed.Rows))
 	for _, item := range parsed.Rows {
-		if !matchesFilterRule(item.Row, src.FilterRule) {
-			continue
-		}
-		if text := extractStringCol(item.Row, src.PromptCol); len(text) > 5 {
-			out = append(out, domain.DatasetRecord{Prompt: text, Category: src.DefaultCategory, AttackType: src.AttackType, Source: src.SourceLabel})
+		if rec, ok := rowToHFDatasetRecord(item.Row, src); ok {
+			out = append(out, rec)
 		}
 	}
 	return out
+}
+
+func rowToHFDatasetRecord(row map[string]any, src store.DatasetSourceRecord) (domain.DatasetRecord, bool) {
+	if !matchesFilterRule(row, src.FilterRule) {
+		return domain.DatasetRecord{}, false
+	}
+	text := extractStringCol(row, src.PromptCol)
+	if len(text) <= 5 {
+		return domain.DatasetRecord{}, false
+	}
+	return domain.DatasetRecord{Prompt: text, Category: src.DefaultCategory, AttackType: src.AttackType, Source: src.SourceLabel}, true
 }
 
 func extractStringCol(row map[string]any, primaryCol string) string {
@@ -80,19 +88,21 @@ func extractStringCol(row map[string]any, primaryCol string) string {
 func matchesFilterRule(row map[string]any, rule string) bool {
 	switch rule {
 	case "is_safe=false":
-		safe, ok := row["is_safe"].(bool)
-		return ok && !safe
+		isSafe, ok := row["is_safe"].(bool)
+		return ok && !isSafe
 	case "toxic_or_jb":
-		tox, _ := row["toxicity"].(float64)
-		jb, _ := row["jailbreaking"].(float64)
-		return tox == 1 || jb == 1
+		return isFlagSet(row, "toxicity") || isFlagSet(row, "jailbreaking")
 	case "label=1":
-		lbl, _ := row["label"].(float64)
-		return lbl == 1
+		return isFlagSet(row, "label")
 	case "type=jailbreak":
 		t, _ := row["type"].(string)
 		return strings.EqualFold(t, "jailbreak")
 	default:
 		return true
 	}
+}
+
+func isFlagSet(row map[string]any, key string) bool {
+	val, ok := row[key].(float64)
+	return ok && val == 1
 }

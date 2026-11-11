@@ -20,14 +20,11 @@ import (
 // EnsureBootstrapped checks if all enabled dataset_sources exist in SQLite prompt_bank; if any are missing, it pulls only the missing ones.
 func EnsureBootstrapped(ctx context.Context, db *store.SQLiteStore, promptsDir string) (bool, error) {
 	missing, err := findMissingSources(ctx, db)
-	if err != nil {
+	if err != nil || len(missing) == 0 {
 		return false, err
-	}
-	if len(missing) == 0 {
-		return false, nil
 	}
 	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
-		return false, err
+		return false, fmt.Errorf("create prompts directory %s: %w", promptsDir, err)
 	}
 	fmt.Printf("[gort] Bootstrap: Detected %d missing datasets in SQLite prompt_bank, downloading...\n", len(missing))
 	pullConfiguredSources(ctx, db, promptsDir, missing)
@@ -38,23 +35,27 @@ func EnsureBootstrapped(ctx context.Context, db *store.SQLiteStore, promptsDir s
 func findMissingSources(ctx context.Context, db *store.SQLiteStore) ([]store.DatasetSourceRecord, error) {
 	sources, err := db.ListDatasetSources(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list dataset sources: %w", err)
 	}
 	existing, err := db.ListDatasets(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list existing datasets: %w", err)
 	}
+	return filterUnpopulatedSources(sources, existing), nil
+}
+
+func filterUnpopulatedSources(sources []store.DatasetSourceRecord, existing []store.DatasetSummary) []store.DatasetSourceRecord {
 	present := make(map[string]int, len(existing))
 	for _, e := range existing {
 		present[e.DatasetName] = e.PromptCount
 	}
-	var missing []store.DatasetSourceRecord
+	missing := []store.DatasetSourceRecord{}
 	for _, s := range sources {
 		if present[s.DatasetName] == 0 {
 			missing = append(missing, s)
 		}
 	}
-	return missing, nil
+	return missing
 }
 
 // PullAll reads dataset_sources from SQLite, fetches all remote/HF/builtin sets into SQLite prompt_bank and promptsDir.
@@ -64,7 +65,7 @@ func PullAll(ctx context.Context, db *store.SQLiteStore, promptsDir string) ([]s
 	}
 	sources, err := db.ListDatasetSources(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list dataset sources: %w", err)
 	}
 	saved := pullConfiguredSources(ctx, db, promptsDir, sources)
 	saved = append(saved, buildMasterSuites(ctx, db, promptsDir)...)
@@ -84,7 +85,9 @@ func pullConfiguredSources(ctx context.Context, db *store.SQLiteStore, promptsDi
 			return nil
 		})
 	}
-	_ = g.Wait()
+	if err := g.Wait(); err != nil {
+		return compactPaths(results)
+	}
 	return compactPaths(results)
 }
 
@@ -95,7 +98,7 @@ func syncSingleSource(ctx context.Context, db *store.SQLiteStore, promptsDir str
 	}
 	cleaned := Deduplicate(records)
 	if err := db.SaveDatasetPrompts(ctx, src.DatasetName, cleaned); err != nil {
-		return "", err
+		return "", fmt.Errorf("save dataset prompts %s: %w", src.DatasetName, err)
 	}
 	csvPath := filepath.Join(promptsDir, src.DatasetName+".csv")
 	return csvPath, WriteCSV(csvPath, cleaned)
@@ -127,17 +130,7 @@ func fetchCSVSource(ctx context.Context, promptsDir string, src store.DatasetSou
 }
 
 func buildMasterSuites(ctx context.Context, db *store.SQLiteStore, promptsDir string) []string {
-	summaries, _ := db.ListDatasets(ctx)
-	var all []domain.DatasetRecord
-	for _, s := range summaries {
-		if strings.HasPrefix(s.DatasetName, "master_red_team_") {
-			continue
-		}
-		if recs, err := db.LoadDatasetPrompts(ctx, s.DatasetName); err == nil {
-			all = append(all, recs...)
-		}
-	}
-	full := Deduplicate(all)
+	full := collectAllBasePrompts(ctx, db)
 	targets := map[string][]domain.DatasetRecord{
 		"master_red_team_100":  StratifiedSample(full, 100),
 		"master_red_team_1000": StratifiedSample(full, 1000),
@@ -146,10 +139,28 @@ func buildMasterSuites(ctx context.Context, db *store.SQLiteStore, promptsDir st
 	return persistMasterSuites(ctx, db, promptsDir, targets)
 }
 
+func collectAllBasePrompts(ctx context.Context, db *store.SQLiteStore) []domain.DatasetRecord {
+	summaries, err := db.ListDatasets(ctx)
+	if err != nil {
+		return []domain.DatasetRecord{}
+	}
+	all := []domain.DatasetRecord{}
+	for _, s := range summaries {
+		if !strings.HasPrefix(s.DatasetName, "master_red_team_") {
+			if recs, err := db.LoadDatasetPrompts(ctx, s.DatasetName); err == nil {
+				all = append(all, recs...)
+			}
+		}
+	}
+	return Deduplicate(all)
+}
+
 func persistMasterSuites(ctx context.Context, db *store.SQLiteStore, promptsDir string, suites map[string][]domain.DatasetRecord) []string {
-	var out []string
+	out := make([]string, 0, len(suites))
 	for name, recs := range suites {
-		_ = db.SaveDatasetPrompts(ctx, name, recs)
+		if err := db.SaveDatasetPrompts(ctx, name, recs); err != nil {
+			continue
+		}
 		path := filepath.Join(promptsDir, name+".csv")
 		if err := WriteCSV(path, recs); err == nil {
 			out = append(out, path)
@@ -164,9 +175,21 @@ func fetchURL(ctx context.Context, rawURL string) (string, error) {
 		if body, ok := tryFetchOnce(ctx, client, rawURL); ok {
 			return body, nil
 		}
-		time.Sleep(time.Duration(attempt+1) * 450 * time.Millisecond)
+		if err := waitRetryBackoff(ctx, attempt); err != nil {
+			return "", fmt.Errorf("fetch %s canceled: %w", rawURL, err)
+		}
 	}
 	return "", fmt.Errorf("fetch %s failed after retries", rawURL)
+}
+
+func waitRetryBackoff(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt+1) * 450 * time.Millisecond
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
 }
 
 func tryFetchOnce(ctx context.Context, client *http.Client, rawURL string) (string, bool) {
@@ -180,6 +203,10 @@ func tryFetchOnce(ctx context.Context, client *http.Client, rawURL string) (stri
 		return "", false
 	}
 	defer resp.Body.Close()
+	return readHTTP200Body(resp)
+}
+
+func readHTTP200Body(resp *http.Response) (string, bool) {
 	if resp.StatusCode != http.StatusOK {
 		return "", false
 	}
@@ -214,7 +241,7 @@ func findColumnIndices(header []string, promptCol, catCol string) (int, int) {
 }
 
 func rowsToRecords(rows [][]string, pIdx, cIdx int, src store.DatasetSourceRecord) []domain.DatasetRecord {
-	var out []domain.DatasetRecord
+	out := make([]domain.DatasetRecord, 0, len(rows))
 	for _, row := range rows {
 		if pIdx >= len(row) {
 			continue
@@ -226,7 +253,7 @@ func rowsToRecords(rows [][]string, pIdx, cIdx int, src store.DatasetSourceRecor
 }
 
 func compactPaths(paths []string) []string {
-	var valid []string
+	valid := make([]string, 0, len(paths))
 	for _, p := range paths {
 		if p != "" {
 			valid = append(valid, p)

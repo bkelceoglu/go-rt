@@ -1,11 +1,15 @@
 package dataset
 
 import (
+	"cmp"
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,7 +31,7 @@ func ResolveDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir stri
 	if len(args) == 1 && strings.EqualFold(args[0], "all") {
 		return resolveAllDatasets(ctx, db, promptsDir)
 	}
-	var out []NamedDataset
+	out := make([]NamedDataset, 0, len(args))
 	for _, arg := range args {
 		ds, err := resolveSingleDataset(ctx, db, promptsDir, arg)
 		if err != nil {
@@ -42,9 +46,9 @@ func resolveAllDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir s
 	syncLocalCSVsToPromptBank(ctx, db, promptsDir)
 	summaries, err := db.ListDatasets(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list datasets: %w", err)
 	}
-	var out []NamedDataset
+	out := make([]NamedDataset, 0, len(summaries))
 	for _, s := range summaries {
 		if recs, err := db.LoadDatasetPrompts(ctx, s.DatasetName); err == nil && len(recs) > 0 {
 			out = append(out, NamedDataset{Name: s.DatasetName, Records: recs})
@@ -54,26 +58,44 @@ func resolveAllDatasets(ctx context.Context, db *store.SQLiteStore, promptsDir s
 }
 
 func syncLocalCSVsToPromptBank(ctx context.Context, db *store.SQLiteStore, promptsDir string) {
-	existing, _ := db.ListDatasets(ctx)
+	present := loadExistingDatasetCounts(ctx, db)
+	matches, err := filepath.Glob(filepath.Join(promptsDir, "*.csv"))
+	if err != nil {
+		return
+	}
+	for _, path := range matches {
+		name := normalizeDatasetName(path)
+		if present[name] == 0 {
+			importCSVIntoPromptBank(ctx, db, name, path)
+		}
+	}
+}
+
+func loadExistingDatasetCounts(ctx context.Context, db *store.SQLiteStore) map[string]int {
+	existing, err := db.ListDatasets(ctx)
+	if err != nil {
+		return map[string]int{}
+	}
 	present := make(map[string]int, len(existing))
 	for _, s := range existing {
 		present[s.DatasetName] = s.PromptCount
 	}
-	matches, _ := filepath.Glob(filepath.Join(promptsDir, "*.csv"))
-	for _, path := range matches {
-		name := normalizeDatasetName(path)
-		if present[name] > 0 {
-			continue
-		}
-		if recs, err := ReadCSV(path); err == nil && len(recs) > 0 {
-			_ = db.SaveDatasetPrompts(ctx, name, recs)
-		}
+	return present
+}
+
+func importCSVIntoPromptBank(ctx context.Context, db *store.SQLiteStore, name, path string) {
+	recs, err := ReadCSV(path)
+	if err != nil || len(recs) == 0 {
+		return
+	}
+	if err := db.SaveDatasetPrompts(ctx, name, recs); err != nil {
+		return
 	}
 }
 
 func resolveSingleDataset(ctx context.Context, db *store.SQLiteStore, promptsDir, arg string) (NamedDataset, error) {
 	if strings.HasPrefix(strings.TrimSpace(arg), "-") {
-		return NamedDataset{}, fmt.Errorf("invalid dataset name %q (looks like a CLI flag)", arg)
+		return NamedDataset{}, fmt.Errorf("invalid dataset name %q (looks like a cli flag)", arg)
 	}
 	name := resolveIndexOrDatasetName(ctx, db, arg)
 	if recs, err := db.LoadDatasetPrompts(ctx, name); err == nil && len(recs) > 0 {
@@ -96,28 +118,34 @@ func resolveIndexOrDatasetName(ctx context.Context, db *store.SQLiteStore, arg s
 func loadOrSeedMissingDataset(ctx context.Context, db *store.SQLiteStore, promptsDir, arg, name string) (NamedDataset, error) {
 	csvPath := resolveCSVPath(promptsDir, arg, name)
 	if recs, err := ReadCSV(csvPath); err == nil && len(recs) > 0 {
-		_ = db.SaveDatasetPrompts(ctx, name, recs)
+		if err := db.SaveDatasetPrompts(ctx, name, recs); err != nil {
+			return NamedDataset{}, fmt.Errorf("save dataset %s: %w", name, err)
+		}
 		return NamedDataset{Name: name, Records: recs}, nil
 	}
 	if !strings.HasSuffix(strings.ToLower(arg), ".csv") {
 		return NamedDataset{}, fmt.Errorf("dataset %q not found (run 'gort ls' to list available datasets)", arg)
 	}
+	return seedCustomCSVDataset(ctx, db, name, csvPath)
+}
+
+func seedCustomCSVDataset(ctx context.Context, db *store.SQLiteStore, name, csvPath string) (NamedDataset, error) {
 	seed, err := db.LoadDatasetPrompts(ctx, "enterprise_security_suite")
 	if err != nil || len(seed) == 0 {
 		return NamedDataset{}, fmt.Errorf("dataset %s not found and seed empty", name)
 	}
-	_ = db.SaveDatasetPrompts(ctx, name, seed)
-	_ = WriteCSV(csvPath, seed)
+	if err := db.SaveDatasetPrompts(ctx, name, seed); err != nil {
+		return NamedDataset{}, fmt.Errorf("save seeded dataset %s: %w", name, err)
+	}
+	if err := WriteCSV(csvPath, seed); err != nil {
+		return NamedDataset{}, fmt.Errorf("write seeded csv %s: %w", csvPath, err)
+	}
 	return NamedDataset{Name: name, Records: seed}, nil
 }
 
 func normalizeDatasetName(arg string) string {
 	base := filepath.Base(strings.TrimSpace(arg))
-	ext := filepath.Ext(base)
-	if ext != "" {
-		base = strings.TrimSuffix(base, ext)
-	}
-	return base
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 func resolveCSVPath(promptsDir, arg, name string) string {
@@ -129,13 +157,14 @@ func resolveCSVPath(promptsDir, arg, name string) string {
 
 func ensureCSVExport(promptsDir, arg, name string, recs []domain.DatasetRecord) {
 	csvPath := resolveCSVPath(promptsDir, arg, name)
-	if _, err := os.Stat(csvPath); os.IsNotExist(err) {
-		_ = os.MkdirAll(filepath.Dir(csvPath), 0o755)
-		_ = WriteCSV(csvPath, recs)
+	if _, err := os.Stat(csvPath); errors.Is(err, os.ErrNotExist) {
+		if err := WriteCSV(csvPath, recs); err != nil {
+			return
+		}
 	}
 }
 
-// StratifiedSample selects up to n records balanced evenly across categories.
+// StratifiedSample selects up to n records balanced evenly across categories in deterministic order.
 func StratifiedSample(records []domain.DatasetRecord, n int) []domain.DatasetRecord {
 	if n <= 0 || len(records) <= n {
 		return records
@@ -153,18 +182,24 @@ func groupRecordsByCategory(records []domain.DatasetRecord) map[string][]domain.
 }
 
 func pickRoundRobin(byCat map[string][]domain.DatasetRecord, limit int) []domain.DatasetRecord {
-	var out []domain.DatasetRecord
+	cats := slices.Sorted(maps.Keys(byCat))
+	out := make([]domain.DatasetRecord, 0, limit)
 	for len(out) < limit {
-		added := false
-		for cat, list := range byCat {
-			if len(list) > 0 && len(out) < limit {
-				out = append(out, list[0])
-				byCat[cat] = list[1:]
-				added = true
-			}
-		}
-		if !added {
+		prevLen := len(out)
+		out = appendRoundPass(out, byCat, cats, limit)
+		if len(out) == prevLen {
 			break
+		}
+	}
+	return out
+}
+
+func appendRoundPass(out []domain.DatasetRecord, byCat map[string][]domain.DatasetRecord, cats []string, limit int) []domain.DatasetRecord {
+	for _, cat := range cats {
+		list := byCat[cat]
+		if len(list) > 0 && len(out) < limit {
+			out = append(out, list[0])
+			byCat[cat] = list[1:]
 		}
 	}
 	return out
@@ -174,7 +209,7 @@ func pickRoundRobin(byCat map[string][]domain.DatasetRecord, limit int) []domain
 func WriteCSV(path string, records []domain.DatasetRecord) error {
 	cleaned := Deduplicate(records)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return fmt.Errorf("create csv dir for %s: %w", path, err)
 	}
 	file, err := os.Create(path)
 	if err != nil {
@@ -187,11 +222,11 @@ func WriteCSV(path string, records []domain.DatasetRecord) error {
 func writeCSVRecords(file *os.File, records []domain.DatasetRecord) error {
 	writer := csv.NewWriter(file)
 	if err := writer.Write([]string{"prompt", "category", "attack_type", "source"}); err != nil {
-		return err
+		return fmt.Errorf("write csv header: %w", err)
 	}
 	for _, r := range records {
 		if err := writer.Write([]string{r.Prompt, r.Category, r.AttackType, r.Source}); err != nil {
-			return err
+			return fmt.Errorf("write csv row: %w", err)
 		}
 	}
 	writer.Flush()
@@ -212,28 +247,40 @@ func ReadCSV(path string) ([]domain.DatasetRecord, error) {
 	return parseStandardRows(rows[0], rows[1:]), nil
 }
 
+type csvColumnMap struct {
+	promptIdx   int
+	categoryIdx int
+	attackIdx   int
+	sourceIdx   int
+}
+
 func parseStandardRows(header []string, rows [][]string) []domain.DatasetRecord {
+	cols := resolveStandardColumns(header)
+	out := make([]domain.DatasetRecord, 0, len(rows))
+	for _, row := range rows {
+		if cols.promptIdx < len(row) {
+			out = append(out, buildRecordFromRow(row, cols))
+		}
+	}
+	return Deduplicate(out)
+}
+
+func resolveStandardColumns(header []string) csvColumnMap {
 	pIdx, cIdx := findColumnIndices(header, "prompt", "category")
 	_, aIdx := findColumnIndices(header, "prompt", "attack_type")
 	_, sIdx := findColumnIndices(header, "prompt", "source")
 	if pIdx < 0 {
 		pIdx = 0
 	}
-	var out []domain.DatasetRecord
-	for _, row := range rows {
-		if pIdx < len(row) {
-			out = append(out, buildRecordFromRow(row, pIdx, cIdx, aIdx, sIdx))
-		}
-	}
-	return Deduplicate(out)
+	return csvColumnMap{promptIdx: pIdx, categoryIdx: cIdx, attackIdx: aIdx, sourceIdx: sIdx}
 }
 
-func buildRecordFromRow(row []string, pIdx, cIdx, aIdx, sIdx int) domain.DatasetRecord {
+func buildRecordFromRow(row []string, cols csvColumnMap) domain.DatasetRecord {
 	return domain.DatasetRecord{
-		Prompt:     strings.TrimSpace(row[pIdx]),
-		Category:   safeCol(row, cIdx, "gort:plugin:general"),
-		AttackType: safeCol(row, aIdx, "Adversarial Probe"),
-		Source:     safeCol(row, sIdx, "Custom-Dataset"),
+		Prompt:     strings.TrimSpace(row[cols.promptIdx]),
+		Category:   safeCol(row, cols.categoryIdx, "gort:plugin:general"),
+		AttackType: safeCol(row, cols.attackIdx, "Adversarial Probe"),
+		Source:     safeCol(row, cols.sourceIdx, "Custom-Dataset"),
 	}
 }
 
@@ -247,16 +294,15 @@ func safeCol(row []string, idx int, fallback string) string {
 // Deduplicate filters prompts shorter than 6 characters and removes duplicate prompt texts.
 func Deduplicate(records []domain.DatasetRecord) []domain.DatasetRecord {
 	seen := make(map[string]struct{}, len(records))
-	var out []domain.DatasetRecord
+	out := make([]domain.DatasetRecord, 0, len(records))
 	for _, r := range records {
 		trimmed := strings.TrimSpace(r.Prompt)
-		if len(trimmed) <= 5 {
-			continue
-		}
-		if _, exists := seen[trimmed]; !exists {
-			seen[trimmed] = struct{}{}
-			r.Prompt = trimmed
-			out = append(out, r)
+		if len(trimmed) > 5 {
+			if _, exists := seen[trimmed]; !exists {
+				seen[trimmed] = struct{}{}
+				r.Prompt = trimmed
+				out = append(out, r)
+			}
 		}
 	}
 	return out
@@ -264,9 +310,7 @@ func Deduplicate(records []domain.DatasetRecord) []domain.DatasetRecord {
 
 // RecordsToTestCases converts standardized DatasetRecords into executable domain.TestCases.
 func RecordsToTestCases(records []domain.DatasetRecord, injectVar string) []domain.TestCase {
-	if injectVar == "" {
-		injectVar = "prompt"
-	}
+	injectVar = cmp.Or(injectVar, "prompt")
 	cases := make([]domain.TestCase, 0, len(records))
 	for i, rec := range records {
 		cases = append(cases, recordToSingleTestCase(i, rec, injectVar))

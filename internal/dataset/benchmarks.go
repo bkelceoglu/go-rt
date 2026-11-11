@@ -29,7 +29,7 @@ func parseCyberSecEvalJSON(body string, src store.DatasetSourceRecord) []domain.
 	if err := json.Unmarshal([]byte(body), &items); err != nil {
 		return nil
 	}
-	var out []domain.DatasetRecord
+	out := make([]domain.DatasetRecord, 0, len(items))
 	for _, it := range items {
 		if strings.TrimSpace(it.UserInput) != "" {
 			out = append(out, domain.DatasetRecord{Prompt: it.UserInput, Category: src.DefaultCategory, AttackType: src.AttackType, Source: src.SourceLabel})
@@ -48,14 +48,13 @@ func fetchMarkdownSource(ctx context.Context, promptsDir string, src store.Datas
 }
 
 func parsePlinyMarkdown(md string, src store.DatasetSourceRecord) []domain.DatasetRecord {
-	sections := strings.Split(md, "# ")
-	var out []domain.DatasetRecord
-	for _, sec := range sections {
-		lines := strings.Split(strings.TrimSpace(sec), "\n")
-		if len(lines) < 2 {
+	out := []domain.DatasetRecord{}
+	for sec := range strings.SplitSeq(md, "# ") {
+		_, rest, hasNewline := strings.Cut(strings.TrimSpace(sec), "\n")
+		if !hasNewline {
 			continue
 		}
-		prompt := strings.TrimSpace(strings.Join(lines[1:], " "))
+		prompt := strings.TrimSpace(strings.ReplaceAll(rest, "\n", " "))
 		if len(prompt) > 25 {
 			out = append(out, domain.DatasetRecord{Prompt: prompt, Category: src.DefaultCategory, AttackType: src.AttackType, Source: src.SourceLabel})
 		}
