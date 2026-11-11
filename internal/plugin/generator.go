@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,21 +31,22 @@ func (s *Synthesizer) SynthesizeBatch(ctx context.Context, p store.PluginRecord,
 	if err != nil {
 		return nil, fmt.Errorf("attacker call failed for %s: %w", p.ID, err)
 	}
-	prompts := parseSynthesizedPrompts(resp.Output)
+	prompts := normalizeSynthesizedPrompts(parseSynthesizedPrompts(resp.Output), p, numTests)
+	return buildTestCasesFromPrompts(prompts, p), nil
+}
+
+func normalizeSynthesizedPrompts(prompts []string, p store.PluginRecord, numTests int) []string {
 	if len(prompts) == 0 {
 		prompts = []string{fmt.Sprintf("Probe %s: %s", p.ID, p.Description)}
 	}
 	if len(prompts) > numTests {
 		prompts = prompts[:numTests]
 	}
-	return buildTestCasesFromPrompts(prompts, p), nil
+	return prompts
 }
 
 func buildSynthesisPrompt(p store.PluginRecord, num int, purpose string, languages []string) string {
-	langStr := strings.Join(languages, ", ")
-	if langStr == "" {
-		langStr = "en"
-	}
+	langStr := cmp.Or(strings.Join(languages, ", "), "en")
 	return fmt.Sprintf(`You are an expert AI red teaming safety researcher.
 Target System Purpose: %s
 Attack Plugin: %s
@@ -67,26 +69,28 @@ func parseSynthesizedPrompts(output string) []string {
 }
 
 func extractJSONArrayBlob(s string) string {
-	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, "```json") {
-		s = strings.TrimPrefix(s, "```json")
-		s = strings.TrimSuffix(s, "```")
-	} else if strings.HasPrefix(s, "```") {
-		s = strings.TrimPrefix(s, "```")
-		s = strings.TrimSuffix(s, "```")
-	}
+	s = stripArrayFence(strings.TrimSpace(s))
 	start := strings.Index(s, "[")
 	end := strings.LastIndex(s, "]")
-	if start != -1 && end != -1 && end > start {
+	if start != -1 && end > start {
 		return s[start : end+1]
 	}
 	return s
 }
 
+func stripArrayFence(s string) string {
+	if after, ok := strings.CutPrefix(s, "```json"); ok {
+		return strings.TrimSuffix(after, "```")
+	}
+	if after, ok := strings.CutPrefix(s, "```"); ok {
+		return strings.TrimSuffix(after, "```")
+	}
+	return s
+}
+
 func parseLineSeparatedFallback(s string) []string {
-	lines := strings.Split(s, "\n")
-	var res []string
-	for _, l := range lines {
+	res := []string{}
+	for l := range strings.SplitSeq(s, "\n") {
 		trimmed := strings.TrimSpace(l)
 		trimmed = strings.TrimLeft(trimmed, "0123456789.-* ")
 		trimmed = strings.Trim(trimmed, `[]"'`)
@@ -98,10 +102,9 @@ func parseLineSeparatedFallback(s string) []string {
 }
 
 func filterNonEmpty(items []string) []string {
-	var out []string
+	out := make([]string, 0, len(items))
 	for _, it := range items {
-		t := strings.TrimSpace(it)
-		if t != "" {
+		if t := strings.TrimSpace(it); t != "" {
 			out = append(out, t)
 		}
 	}
@@ -109,20 +112,23 @@ func filterNonEmpty(items []string) []string {
 }
 
 func buildTestCasesFromPrompts(prompts []string, p store.PluginRecord) []domain.TestCase {
-	var cases []domain.TestCase
+	cases := make([]domain.TestCase, 0, len(prompts))
 	for i, promptText := range prompts {
-		tc := domain.TestCase{
-			ID:   fmt.Sprintf("%s-syn-%03d", strings.TrimPrefix(p.ID, "gort:plugin:"), i+1),
-			Vars: domain.Vars{"prompt": promptText},
-			Metadata: domain.Metadata{
-				PluginID:     p.ID,
-				Purpose:      p.Category,
-				Goal:         p.Description,
-				OriginalText: "Attacker LLM Dynamic Synthesis",
-				Severity:     p.Severity,
-			},
-		}
-		cases = append(cases, tc)
+		cases = append(cases, toSynthesizedTestCase(p, i+1, promptText))
 	}
 	return cases
+}
+
+func toSynthesizedTestCase(p store.PluginRecord, idx int, promptText string) domain.TestCase {
+	return domain.TestCase{
+		ID:   fmt.Sprintf("%s-syn-%03d", strings.TrimPrefix(p.ID, "gort:plugin:"), idx),
+		Vars: domain.Vars{"prompt": promptText},
+		Metadata: domain.Metadata{
+			PluginID:     p.ID,
+			Purpose:      p.Category,
+			Goal:         p.Description,
+			OriginalText: "Attacker LLM Dynamic Synthesis",
+			Severity:     p.Severity,
+		},
+	}
 }

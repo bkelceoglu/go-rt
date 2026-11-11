@@ -10,6 +10,7 @@ import (
 type Severity string
 
 const (
+	SeverityUnknown  Severity = ""
 	SeverityLow      Severity = "low"
 	SeverityMedium   Severity = "medium"
 	SeverityHigh     Severity = "high"
@@ -131,7 +132,7 @@ type PluginConfig struct {
 	InjectVar          string            `json:"injectVar"`
 	Purpose            string            `json:"purpose"`
 	Language           string            `json:"language,omitempty"`
-	MaxCharsPerMessage int               `json:"maxCharsPerMessage,omitempty"`
+	MaxCharsPerMessage int               `json:"maxCharsPerMessage,omitzero"`
 	Examples           []string          `json:"examples,omitempty"`
 	Modifiers          map[string]string `json:"modifiers,omitempty"`
 }

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	_ "embed"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/caveman/go-rt/internal/domain"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -23,6 +25,8 @@ PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
 `
 
+var _ domain.ResultStore = (*SQLiteStore)(nil)
+
 // SQLiteStore manages plugins, collections, dataset_sources, prompt_bank, and OTel results via GORM + pure-Go SQLite.
 type SQLiteStore struct {
 	db    *gorm.DB
@@ -31,9 +35,7 @@ type SQLiteStore struct {
 
 // OpenSQLite opens or creates the SQLite database at dbPath, runs GORM AutoMigrate, and seeds the catalog.
 func OpenSQLite(dbPath string) (*SQLiteStore, error) {
-	if dbPath == "" {
-		dbPath = ".gort/gort.db"
-	}
+	dbPath = cmp.Or(dbPath, ".gort/gort.db")
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create sqlite dir: %w", err)
 	}
@@ -89,16 +91,18 @@ func (s *SQLiteStore) Close() error {
 
 // ListPlugins returns all plugins stored in the SQLite plugins table ordered by ID.
 func (s *SQLiteStore) ListPlugins(ctx context.Context) ([]PluginRecord, error) {
-	var out []PluginRecord
-	err := s.db.WithContext(ctx).Order("id ASC").Find(&out).Error
-	return out, err
+	out := []PluginRecord{}
+	if err := s.db.WithContext(ctx).Order("id ASC").Find(&out).Error; err != nil {
+		return nil, fmt.Errorf("list plugins: %w", err)
+	}
+	return out, nil
 }
 
 // CollectionMap returns all preset collections mapped to their plugin IDs from SQLite.
 func (s *SQLiteStore) CollectionMap(ctx context.Context) (map[string][]string, error) {
 	var records []PluginCollectionRecord
 	if err := s.db.WithContext(ctx).Order("collection_id ASC, plugin_id ASC").Find(&records).Error; err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query collection map: %w", err)
 	}
 	out := make(map[string][]string)
 	for _, r := range records {
@@ -109,21 +113,27 @@ func (s *SQLiteStore) CollectionMap(ctx context.Context) (map[string][]string, e
 
 // ListDatasetSources returns all enabled dataset sources from SQLite.
 func (s *SQLiteStore) ListDatasetSources(ctx context.Context) ([]DatasetSourceRecord, error) {
-	var out []DatasetSourceRecord
-	err := s.db.WithContext(ctx).Where("enabled = ?", true).Order("dataset_name ASC").Find(&out).Error
-	return out, err
+	out := []DatasetSourceRecord{}
+	if err := s.db.WithContext(ctx).Where("enabled = ?", true).Order("dataset_name ASC").Find(&out).Error; err != nil {
+		return nil, fmt.Errorf("list dataset sources: %w", err)
+	}
+	return out, nil
 }
 
 // ListStrategies returns all adversarial strategies stored in SQLite.
 func (s *SQLiteStore) ListStrategies(ctx context.Context) ([]StrategyRecord, error) {
-	var out []StrategyRecord
-	err := s.db.WithContext(ctx).Order("id ASC").Find(&out).Error
-	return out, err
+	out := []StrategyRecord{}
+	if err := s.db.WithContext(ctx).Order("id ASC").Find(&out).Error; err != nil {
+		return nil, fmt.Errorf("list strategies: %w", err)
+	}
+	return out, nil
 }
 
 // GetStrategy returns a single strategy by ID from SQLite.
 func (s *SQLiteStore) GetStrategy(ctx context.Context, id string) (StrategyRecord, error) {
 	var out StrategyRecord
-	err := s.db.WithContext(ctx).Where("id = ?", id).First(&out).Error
-	return out, err
+	if err := s.db.WithContext(ctx).Where("id = ?", id).First(&out).Error; err != nil {
+		return StrategyRecord{}, fmt.Errorf("get strategy %s: %w", id, err)
+	}
+	return out, nil
 }

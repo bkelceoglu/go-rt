@@ -1,4 +1,4 @@
-.PHONY: all build test lint fmt vet check clean
+.PHONY: all build test test-race lint fmt vet check clean
 
 BINARY_NAME=gort
 BUILD_DIR=bin
@@ -17,6 +17,9 @@ vet:
 
 test:
 	CGO_ENABLED=0 go test -v ./...
+
+test-race:
+	go test -race ./...
 
 lint:
 	@if command -v golangci-lint >/dev/null 2>&1; then \

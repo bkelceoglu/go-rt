@@ -1,7 +1,9 @@
 package web
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -39,6 +41,8 @@ type AssessmentManager struct {
 	db      *store.SQLiteStore
 	workDir string
 	mu      sync.Mutex
+	wg      sync.WaitGroup
+	runGen  uint64
 	cancel  context.CancelFunc
 	status  AssessmentStatus
 }
@@ -64,22 +68,28 @@ func (m *AssessmentManager) Status() AssessmentStatus {
 
 // Start launches an assessment in a background goroutine.
 func (m *AssessmentManager) Start(cfg *domain.Config, datasetName string) error {
+	ctx, cancel, gen, err := m.beginRunSession(datasetName)
+	if err != nil {
+		return err
+	}
+	m.wg.Go(func() {
+		defer cancel()
+		m.runAssessmentWorkflow(ctx, gen, cfg, datasetName)
+	})
+	return nil
+}
+
+func (m *AssessmentManager) beginRunSession(datasetName string) (context.Context, context.CancelFunc, uint64, error) {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.status.Running {
-		m.mu.Unlock()
-		return fmt.Errorf("an assessment is already actively running")
+		return nil, nil, 0, errors.New("an assessment is already actively running")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	m.runGen++
 	m.cancel = cancel
-	m.status = AssessmentStatus{
-		Running:   true,
-		Dataset:   datasetName,
-		StartedAt: time.Now(),
-	}
-	m.mu.Unlock()
-
-	go m.runAssessmentWorkflow(ctx, cfg, datasetName)
-	return nil
+	m.status = AssessmentStatus{Running: true, Dataset: datasetName, StartedAt: time.Now()}
+	return ctx, cancel, m.runGen, nil
 }
 
 // Stop terminates any active assessment.
@@ -87,7 +97,7 @@ func (m *AssessmentManager) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.status.Running || m.cancel == nil {
-		return fmt.Errorf("no active assessment is running")
+		return errors.New("no active assessment is running")
 	}
 	m.cancel()
 	m.status.Running = false
@@ -95,18 +105,23 @@ func (m *AssessmentManager) Stop() error {
 	return nil
 }
 
-func (m *AssessmentManager) runAssessmentWorkflow(ctx context.Context, cfg *domain.Config, datasetName string) {
+// Wait blocks until any running background assessment goroutine exits.
+func (m *AssessmentManager) Wait() {
+	m.wg.Wait()
+}
+
+func (m *AssessmentManager) runAssessmentWorkflow(ctx context.Context, gen uint64, cfg *domain.Config, datasetName string) {
 	_ = telemetry.EnableLiveLog(filepath.Join(m.workDir, telemetry.DefaultLogPath))
 	cases, err := m.resolveTestCases(ctx, cfg, datasetName)
 	if err != nil {
-		m.recordFailure(err)
+		m.recordFailure(gen, err)
 		return
 	}
 	if err := m.executeEvaluationRounds(ctx, cfg, cases); err != nil {
-		m.recordFailure(err)
+		m.recordFailure(gen, err)
 		return
 	}
-	m.markComplete()
+	m.markComplete(gen)
 }
 
 func (m *AssessmentManager) resolveTestCases(ctx context.Context, cfg *domain.Config, datasetName string) ([]domain.TestCase, error) {
@@ -131,25 +146,23 @@ func (m *AssessmentManager) loadCasesFromDatasets(ctx context.Context, cfg *doma
 	pDir := m.resolvePromptsDir(cfg.PromptsDir)
 	sets, err := dataset.ResolveDatasets(ctx, m.db, pDir, args)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resolve datasets: %w", err)
 	}
-	var all []domain.TestCase
+	all := []domain.TestCase{}
 	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
 	for _, s := range sets {
 		all = append(all, dataset.RecordsToTestCases(s.Records, injectVar)...)
 	}
 	if len(all) == 0 {
-		return nil, fmt.Errorf("no test cases found in requested datasets")
+		return nil, errors.New("no test cases found in requested datasets")
 	}
 	return all, nil
 }
 
 func (m *AssessmentManager) resolvePromptsDir(dir string) string {
-	if dir == "" {
-		dir = "prompts"
-	}
-	if filepath.IsAbs(dir) {
-		return dir
+	dir = cmp.Or(strings.TrimSpace(dir), "prompts")
+	if !filepath.IsLocal(dir) {
+		dir = filepath.Base(dir)
 	}
 	return filepath.Join(m.workDir, dir)
 }
@@ -157,12 +170,12 @@ func (m *AssessmentManager) resolvePromptsDir(dir string) string {
 func (m *AssessmentManager) synthesizeCasesViaAttacker(ctx context.Context, cfg *domain.Config) ([]domain.TestCase, error) {
 	attacker := provider.BuildFromSpec(cfg.Attacker)
 	if attacker == nil {
-		return nil, fmt.Errorf("no attacker LLM configured for automated prompt synthesis")
+		return nil, errors.New("no attacker llm configured for automated prompt synthesis")
 	}
 	syn := plugin.NewSynthesizer(attacker)
 	recs, err := plugin.All(ctx, m.db)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load plugins catalog: %w", err)
 	}
 	recMap := make(map[string]store.PluginRecord, len(recs))
 	for _, r := range recs {
@@ -172,28 +185,51 @@ func (m *AssessmentManager) synthesizeCasesViaAttacker(ctx context.Context, cfg 
 }
 
 func (m *AssessmentManager) synthesizeForPluginSpecs(ctx context.Context, syn *plugin.Synthesizer, cfg *domain.Config, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
-	var all []domain.TestCase
+	all := []domain.TestCase{}
 	for _, spec := range cfg.Redteam.Plugins {
-		rec := recMap[spec.ID]
-		if rec.ID == "" {
-			rec = store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity}
-		}
-		numTests := spec.NumTests
-		if numTests <= 0 {
-			numTests = cfg.Redteam.NumTestsPerPlugin
-		}
-		cases, err := syn.SynthesizeBatch(ctx, rec, numTests, cfg.Purpose, cfg.Redteam.Languages)
-		if err == nil {
+		rec, numTests := resolvePluginSynthTarget(spec, cfg.Redteam.NumTestsPerPlugin, recMap)
+		if cases, err := syn.SynthesizeBatch(ctx, rec, numTests, cfg.Purpose, cfg.Redteam.Languages); err == nil {
 			all = append(all, cases...)
 		}
 	}
 	if len(all) == 0 {
-		return nil, fmt.Errorf("failed synthesizing test cases via attacker LLM")
+		return nil, errors.New("failed synthesizing test cases via attacker llm")
 	}
 	return all, nil
 }
 
+func resolvePluginSynthTarget(spec domain.PluginSpec, defaultNum int, recMap map[string]store.PluginRecord) (store.PluginRecord, int) {
+	rec := recMap[spec.ID]
+	if rec.ID == "" {
+		rec = store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity}
+	}
+	numTests := spec.NumTests
+	if numTests <= 0 {
+		numTests = defaultNum
+	}
+	return rec, numTests
+}
+
+type targetEvalEnv struct {
+	cfg       *domain.Config
+	evaluator *engine.Evaluator
+	attacker  domain.Provider
+	exemptMap map[string]bool
+	injectVar string
+	cases     []domain.TestCase
+}
+
 func (m *AssessmentManager) executeEvaluationRounds(ctx context.Context, cfg *domain.Config, cases []domain.TestCase) error {
+	env := m.buildTargetEvalEnv(ctx, cfg, cases)
+	for _, targetSpec := range cfg.Targets {
+		if err := m.evaluateTarget(ctx, env, targetSpec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *AssessmentManager) buildTargetEvalEnv(ctx context.Context, cfg *domain.Config, cases []domain.TestCase) targetEvalEnv {
 	judge := provider.BuildJudge(cfg.Judge)
 	var attacker domain.Provider
 	if strings.TrimSpace(cfg.Attacker.ID) != "" {
@@ -202,34 +238,36 @@ func (m *AssessmentManager) executeEvaluationRounds(ctx context.Context, cfg *do
 	attacker, judge = provider.WrapSharedSequential(attacker, judge, cfg.SequentialSharedLLM)
 	evaluator := engine.NewEvaluator(m.db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
 	evaluator.SetVerbose(true)
-	exemptMap := m.loadExemptMap(ctx)
-	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
-
-	for _, targetSpec := range cfg.Targets {
-		if err := m.evaluateTarget(ctx, cfg, evaluator, targetSpec, attacker, exemptMap, injectVar, cases); err != nil {
-			return err
-		}
+	return targetEvalEnv{
+		cfg:       cfg,
+		evaluator: evaluator,
+		attacker:  attacker,
+		exemptMap: m.loadExemptMap(ctx),
+		injectVar: template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate),
+		cases:     cases,
 	}
-	return nil
 }
 
-func (m *AssessmentManager) evaluateTarget(ctx context.Context, cfg *domain.Config, evaluator *engine.Evaluator, spec domain.ProviderSpec, attacker domain.Provider, exemptMap map[string]bool, injectVar string, cases []domain.TestCase) error {
+func (m *AssessmentManager) evaluateTarget(ctx context.Context, env targetEvalEnv, spec domain.ProviderSpec) error {
 	target := provider.BuildFromSpec(spec)
-	expanded, err := strategy.ExpandForTarget(ctx, cases, cfg.Strategies, exemptMap, injectVar, target, attacker)
+	expanded, err := strategy.ExpandForTarget(ctx, env.cases, env.cfg.Strategies, env.exemptMap, env.injectVar, target, env.attacker)
 	if err != nil {
-		return err
+		return fmt.Errorf("expand strategies for %s: %w", spec.ID, err)
 	}
 	m.updateTargetStatus(spec.ID, len(expanded))
-	run, err := evaluator.ExecuteRun(ctx, cfg, expanded, target)
+	run, err := env.evaluator.ExecuteRun(ctx, env.cfg, expanded, target)
 	if err != nil {
-		return err
+		return fmt.Errorf("execute run for %s: %w", spec.ID, err)
 	}
 	m.recordRunCompletion(run)
 	return nil
 }
 
 func (m *AssessmentManager) loadExemptMap(ctx context.Context) map[string]bool {
-	recs, _ := plugin.All(ctx, m.db)
+	recs, err := plugin.All(ctx, m.db)
+	if err != nil {
+		return map[string]bool{}
+	}
 	out := make(map[string]bool, len(recs))
 	for _, r := range recs {
 		if r.StrategyExempt {
@@ -255,17 +293,23 @@ func (m *AssessmentManager) recordRunCompletion(run domain.EvalRun) {
 	m.status.CurrentCase += run.TotalTests
 }
 
-func (m *AssessmentManager) recordFailure(err error) {
+func (m *AssessmentManager) recordFailure(gen uint64, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.runGen != gen || !m.status.Running {
+		return
+	}
 	m.status.Running = false
 	m.status.ErrorMessage = err.Error()
 	m.status.DurationMs = time.Since(m.status.StartedAt).Milliseconds()
 }
 
-func (m *AssessmentManager) markComplete() {
+func (m *AssessmentManager) markComplete(gen uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.runGen != gen || !m.status.Running {
+		return
+	}
 	m.status.Running = false
 	m.status.DurationMs = time.Since(m.status.StartedAt).Milliseconds()
 }

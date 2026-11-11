@@ -10,6 +10,8 @@ import (
 
 const StrategyRetry = "gort:strategy:retry"
 
+var _ domain.Provider = (*RetryDecorator)(nil)
+
 // RetryDecorator wraps a target Provider and automatically retries upon refusal with rephrased prompts.
 type RetryDecorator struct {
 	target     domain.Provider
@@ -36,29 +38,36 @@ func (d *RetryDecorator) ID() string {
 	return fmt.Sprintf("%s[%s]", d.target.ID(), d.strategyID)
 }
 
+type retryAccumulator struct {
+	lastResp    domain.ProviderResponse
+	totalTokens domain.TokenUsage
+	totalLat    int64
+}
+
+func (a *retryAccumulator) record(resp domain.ProviderResponse) {
+	a.totalLat += resp.LatencyMs
+	addTokenUsage(&a.totalTokens, resp.TokenUsage)
+	a.lastResp = resp
+	a.lastResp.LatencyMs = a.totalLat
+	a.lastResp.TokenUsage = a.totalTokens
+}
+
 // Call executes the target call and re-attempts upon basic refusal.
 func (d *RetryDecorator) Call(ctx context.Context, req domain.PromptRequest) (domain.ProviderResponse, error) {
 	currentPrompt := req.Prompt
-	var lastResp domain.ProviderResponse
-	var totalTokens domain.TokenUsage
-	var totalLat int64
-
-	for attempt := 0; attempt <= d.maxRetries; attempt++ {
+	var acc retryAccumulator
+	for attempt := range d.maxRetries + 1 {
 		resp, done, err := d.executeAttempt(ctx, currentPrompt, attempt)
 		if err != nil {
 			return resp, err
 		}
-		totalLat += resp.LatencyMs
-		addTokenUsage(&totalTokens, resp.TokenUsage)
-		lastResp = resp
+		acc.record(resp)
 		if done {
 			break
 		}
 		currentPrompt = d.rephrasePrompt(ctx, currentPrompt, attempt+1)
 	}
-	lastResp.LatencyMs = totalLat
-	lastResp.TokenUsage = totalTokens
-	return lastResp, nil
+	return acc.lastResp, nil
 }
 
 func (d *RetryDecorator) executeAttempt(ctx context.Context, prompt string, attempt int) (domain.ProviderResponse, bool, error) {

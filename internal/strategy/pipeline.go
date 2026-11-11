@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -15,6 +16,12 @@ const (
 	StrategyGOAT      = agentic.StrategyGOAT
 	StrategyHydra     = agentic.StrategyHydra
 	StrategyRetry     = agentic.StrategyRetry
+)
+
+var (
+	_ domain.Strategy = (*MultiTurnStrategy)(nil)
+	_ domain.Strategy = (*RetryStrategy)(nil)
+	_ domain.Strategy = (*LayerStrategy)(nil)
 )
 
 // MultiTurnStrategy attaches a Crescendo/GOAT/Hydra TargetOverride decorator to each TestCase.
@@ -48,9 +55,7 @@ func (m *MultiTurnStrategy) ID() string {
 
 // Apply clones each TestCase and attaches a fresh CrescendoDecorator to TargetOverride.
 func (m *MultiTurnStrategy) Apply(_ context.Context, cases []domain.TestCase, injectVar string) ([]domain.TestCase, error) {
-	if injectVar == "" {
-		injectVar = "prompt"
-	}
+	injectVar = cmp.Or(injectVar, "prompt")
 	out := make([]domain.TestCase, 0, len(cases))
 	for _, tc := range cases {
 		out = append(out, m.wrapCase(tc, injectVar))
@@ -60,9 +65,7 @@ func (m *MultiTurnStrategy) Apply(_ context.Context, cases []domain.TestCase, in
 
 func (m *MultiTurnStrategy) wrapCase(tc domain.TestCase, injectVar string) domain.TestCase {
 	cloned := tc.Clone()
-	if cloned.Metadata.OriginalText == "" {
-		cloned.Metadata.OriginalText = cloned.Vars[injectVar]
-	}
+	cloned.Metadata.OriginalText = cmp.Or(cloned.Metadata.OriginalText, cloned.Vars[injectVar])
 	cloned.Metadata.StrategyID = m.id
 	cloned.ID = fmt.Sprintf("%s-%s", tc.ID, m.shortName)
 	if m.target != nil {
@@ -101,9 +104,7 @@ func (r *RetryStrategy) ID() string {
 
 // Apply clones each TestCase and attaches a RetryDecorator to TargetOverride.
 func (r *RetryStrategy) Apply(_ context.Context, cases []domain.TestCase, injectVar string) ([]domain.TestCase, error) {
-	if injectVar == "" {
-		injectVar = "prompt"
-	}
+	injectVar = cmp.Or(injectVar, "prompt")
 	out := make([]domain.TestCase, 0, len(cases))
 	for _, tc := range cases {
 		out = append(out, r.wrapCase(tc, injectVar))
@@ -113,9 +114,7 @@ func (r *RetryStrategy) Apply(_ context.Context, cases []domain.TestCase, inject
 
 func (r *RetryStrategy) wrapCase(tc domain.TestCase, injectVar string) domain.TestCase {
 	cloned := tc.Clone()
-	if cloned.Metadata.OriginalText == "" {
-		cloned.Metadata.OriginalText = cloned.Vars[injectVar]
-	}
+	cloned.Metadata.OriginalText = cmp.Or(cloned.Metadata.OriginalText, cloned.Vars[injectVar])
 	cloned.Metadata.StrategyID = r.id
 	cloned.ID = fmt.Sprintf("%s-retry", tc.ID)
 	if r.target != nil {
@@ -166,6 +165,22 @@ func (l *LayerStrategy) Apply(ctx context.Context, cases []domain.TestCase, inje
 	return current, nil
 }
 
+var framingConstructors = map[string]func() domain.Strategy{
+	StrategyJailbreakTemplates:  func() domain.Strategy { return NewJailbreakTemplateStrategy(nil) },
+	StrategyMathPrompt:          func() domain.Strategy { return NewMathPromptStrategy() },
+	StrategyPromptInjection:     func() domain.Strategy { return NewPromptInjectionStrategy() },
+	StrategyCitation:            func() domain.Strategy { return NewCitationStrategy() },
+	StrategyAuthoritativeMarkup: func() domain.Strategy { return NewAuthoritativeMarkupStrategy() },
+	StrategyMischievousUser:     func() domain.Strategy { return NewMischievousUserStrategy() },
+	StrategyJailbreakComposite:  func() domain.Strategy { return NewJailbreakCompositeStrategy() },
+	StrategyJailbreakLikert:     func() domain.Strategy { return NewJailbreakLikertStrategy() },
+	StrategyJailbreakTree:       func() domain.Strategy { return NewJailbreakTreeStrategy() },
+	StrategyJailbreakMeta:       func() domain.Strategy { return NewJailbreakMetaStrategy() },
+	StrategyJailbreakGoblin:     func() domain.Strategy { return NewJailbreakGoblinStrategy() },
+	StrategyJailbreak:           func() domain.Strategy { return NewJailbreakMasterStrategy() },
+	StrategyBestOfN:             func() domain.Strategy { return NewBestOfNStrategy() },
+}
+
 // BuildStrategy resolves a static, template, or layer StrategySpec.
 func BuildStrategy(spec domain.StrategySpec) (domain.Strategy, error) {
 	return BuildStrategyWithProviders(spec, nil, nil)
@@ -174,33 +189,10 @@ func BuildStrategy(spec domain.StrategySpec) (domain.Strategy, error) {
 // BuildStrategyWithProviders resolves any static, template, layer, or multi-turn StrategySpec.
 func BuildStrategyWithProviders(spec domain.StrategySpec, target, attacker domain.Provider) (domain.Strategy, error) {
 	norm := normalizeStrategyID(spec.ID)
+	if ctor, ok := framingConstructors[norm]; ok {
+		return ctor(), nil
+	}
 	switch norm {
-	case StrategyJailbreakTemplates:
-		return NewJailbreakTemplateStrategy(nil), nil
-	case StrategyMathPrompt:
-		return NewMathPromptStrategy(), nil
-	case StrategyPromptInjection:
-		return NewPromptInjectionStrategy(), nil
-	case StrategyCitation:
-		return NewCitationStrategy(), nil
-	case StrategyAuthoritativeMarkup:
-		return NewAuthoritativeMarkupStrategy(), nil
-	case StrategyMischievousUser:
-		return NewMischievousUserStrategy(), nil
-	case StrategyJailbreakComposite:
-		return NewJailbreakCompositeStrategy(), nil
-	case StrategyJailbreakLikert:
-		return NewJailbreakLikertStrategy(), nil
-	case StrategyJailbreakTree:
-		return NewJailbreakTreeStrategy(), nil
-	case StrategyJailbreakMeta:
-		return NewJailbreakMetaStrategy(), nil
-	case StrategyJailbreakGoblin:
-		return NewJailbreakGoblinStrategy(), nil
-	case StrategyJailbreak:
-		return NewJailbreakMasterStrategy(), nil
-	case StrategyBestOfN:
-		return NewBestOfNStrategy(), nil
 	case StrategyRetry:
 		return NewRetryStrategy(spec, target, attacker), nil
 	case StrategyLayer:
@@ -217,13 +209,21 @@ func ExpandWithStrategies(ctx context.Context, cases []domain.TestCase, specs []
 	return ExpandForTarget(ctx, cases, specs, exempt, injectVar, nil, nil)
 }
 
+type strategyBatchRunner struct {
+	specs     []domain.StrategySpec
+	injectVar string
+	target    domain.Provider
+	attacker  domain.Provider
+}
+
 // ExpandForTarget applies configured strategies and binds target/attacker providers for multi-turn strategies.
 func ExpandForTarget(ctx context.Context, cases []domain.TestCase, specs []domain.StrategySpec, exempt map[string]bool, injectVar string, target, attacker domain.Provider) ([]domain.TestCase, error) {
 	if len(specs) == 0 {
 		specs = []domain.StrategySpec{{ID: StrategyBasic}}
 	}
 	exemptCases, activeCases := splitExemptCases(cases, exempt)
-	expanded, err := runStrategySpecs(ctx, activeCases, specs, injectVar, target, attacker)
+	runner := strategyBatchRunner{specs: specs, injectVar: injectVar, target: target, attacker: attacker}
+	expanded, err := runner.run(ctx, activeCases)
 	if err != nil {
 		return nil, err
 	}
@@ -231,13 +231,12 @@ func ExpandForTarget(ctx context.Context, cases []domain.TestCase, specs []domai
 }
 
 func splitExemptCases(cases []domain.TestCase, exempt map[string]bool) ([]domain.TestCase, []domain.TestCase) {
-	var exemptOut, activeOut []domain.TestCase
+	exemptOut := []domain.TestCase{}
+	activeOut := []domain.TestCase{}
 	for _, tc := range cases {
 		cloned := tc.Clone()
 		if exempt != nil && exempt[cloned.Metadata.PluginID] {
-			if cloned.Metadata.StrategyID == "" {
-				cloned.Metadata.StrategyID = StrategyBasic
-			}
+			cloned.Metadata.StrategyID = cmp.Or(cloned.Metadata.StrategyID, StrategyBasic)
 			exemptOut = append(exemptOut, cloned)
 			continue
 		}
@@ -246,17 +245,17 @@ func splitExemptCases(cases []domain.TestCase, exempt map[string]bool) ([]domain
 	return exemptOut, activeOut
 }
 
-func runStrategySpecs(ctx context.Context, activeCases []domain.TestCase, specs []domain.StrategySpec, injectVar string, target, attacker domain.Provider) ([]domain.TestCase, error) {
+func (r strategyBatchRunner) run(ctx context.Context, activeCases []domain.TestCase) ([]domain.TestCase, error) {
 	if len(activeCases) == 0 {
-		return nil, nil
+		return []domain.TestCase{}, nil
 	}
-	var all []domain.TestCase
-	for _, spec := range specs {
-		strat, err := BuildStrategyWithProviders(spec, target, attacker)
+	all := make([]domain.TestCase, 0, len(activeCases)*len(r.specs))
+	for _, spec := range r.specs {
+		strat, err := BuildStrategyWithProviders(spec, r.target, r.attacker)
 		if err != nil {
 			return nil, fmt.Errorf("build strategy %s: %w", spec.ID, err)
 		}
-		mutated, err := strat.Apply(ctx, activeCases, injectVar)
+		mutated, err := strat.Apply(ctx, activeCases, r.injectVar)
 		if err != nil {
 			return nil, err
 		}

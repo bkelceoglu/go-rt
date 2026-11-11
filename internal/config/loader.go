@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -41,15 +42,9 @@ func ParseBytes(raw []byte) (domain.Config, error) {
 }
 
 func applyDefaults(cfg *domain.Config) {
-	if cfg.PromptsDir == "" {
-		cfg.PromptsDir = defaultPromptsDir
-	}
-	if cfg.PromptTemplate == "" {
-		cfg.PromptTemplate = defaultPromptTemplate
-	}
-	if cfg.InjectVar == "" {
-		cfg.InjectVar = defaultInjectVar
-	}
+	cfg.PromptsDir = cmp.Or(cfg.PromptsDir, defaultPromptsDir)
+	cfg.PromptTemplate = cmp.Or(cfg.PromptTemplate, defaultPromptTemplate)
+	cfg.InjectVar = cmp.Or(cfg.InjectVar, defaultInjectVar)
 	applyRuntimeDefaults(cfg)
 }
 
@@ -57,9 +52,7 @@ func applyRuntimeDefaults(cfg *domain.Config) {
 	if cfg.MaxConcurrency <= 0 {
 		cfg.MaxConcurrency = defaultMaxConcurrency
 	}
-	if cfg.Storage.SQLitePath == "" {
-		cfg.Storage.SQLitePath = defaultSQLitePath
-	}
+	cfg.Storage.SQLitePath = cmp.Or(cfg.Storage.SQLitePath, defaultSQLitePath)
 	if cfg.Redteam.NumTestsPerPlugin <= 0 {
 		cfg.Redteam.NumTestsPerPlugin = 5
 	}

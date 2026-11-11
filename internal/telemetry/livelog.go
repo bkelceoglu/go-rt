@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,15 +24,13 @@ var (
 func EnableLiveLog(path string) error {
 	logMu.Lock()
 	defer logMu.Unlock()
-	if path == "" {
-		path = DefaultLogPath
-	}
+	path = cmp.Or(path, DefaultLogPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return fmt.Errorf("create live log dir: %w", err)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("open live log %s: %w", path, err)
 	}
 	activeLogPath = path
 	return f.Close()

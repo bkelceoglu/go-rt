@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,12 +40,7 @@ func main() {
 
 func run(args []string, in io.Reader) error {
 	parsed := parseCLIArgs(args)
-	if parsed.Kind == cmdHelp {
-		printUsage()
-		return nil
-	}
-	if parsed.Kind == cmdVersion {
-		fmt.Printf("gort v%s (Go 1.27+ Enterprise AI Red Teaming Engine)\n", version)
+	if handleInfoCommand(parsed.Kind) {
 		return nil
 	}
 	db, err := store.OpenSQLite(defaultSQLitePath)
@@ -58,6 +54,19 @@ func run(args []string, in io.Reader) error {
 	return dispatchParsedCommand(parsed, db, in)
 }
 
+func handleInfoCommand(kind cliCommandKind) bool {
+	switch kind {
+	case cmdHelp:
+		printUsage()
+		return true
+	case cmdVersion:
+		fmt.Printf("gort v%s (Go 1.27+ Enterprise AI Red Teaming Engine)\n", version)
+		return true
+	default:
+		return false
+	}
+}
+
 func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
 	_ = telemetry.EnableLiveLog(telemetry.DefaultLogPath)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -65,6 +74,11 @@ func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
 	if _, err := dataset.EnsureBootstrapped(ctx, db, defaultPromptsDir); err != nil {
 		return err
 	}
+	printDBBootstrapBanner(ctx, db)
+	return nil
+}
+
+func printDBBootstrapBanner(ctx context.Context, db *store.SQLiteStore) {
 	plugins, _ := db.ListPlugins(ctx)
 	cols, _ := db.CollectionMap(ctx)
 	strats, _ := db.ListStrategies(ctx)
@@ -76,11 +90,10 @@ func bootstrapAndSummarizeDB(db *store.SQLiteStore) error {
 		ui.Bold(fmt.Sprintf("%d strategies", len(strats))),
 		ui.Bold(fmt.Sprintf("%d datasets", len(sets))),
 		ui.BoldGreen(fmt.Sprintf("%d", sumPromptCounts(sets))))
-	return nil
 }
 
 func sumPromptCounts(sets []store.DatasetSummary) int {
-	total := 0
+	var total int
 	for _, s := range sets {
 		total += s.PromptCount
 	}
@@ -131,18 +144,14 @@ func dispatchOperationalCommand(parsed parsedCLI, db *store.SQLiteStore, in io.R
 	case cmdPullDatasets:
 		return runPullDatasets(db)
 	default:
-		return executeAssessment(parsed.ConfigPath, parsed.DatasetArgs, parsed.Verbose, db, in)
+		return executeAssessment(parsed, db, in)
 	}
 }
 
 func runWebDashboard(db *store.SQLiteStore, portArg string) error {
 	addr := ":8585"
 	if portArg != "" {
-		if !strings.HasPrefix(portArg, ":") {
-			addr = ":" + portArg
-		} else {
-			addr = portArg
-		}
+		addr = ":" + strings.TrimPrefix(portArg, ":")
 	}
 	fmt.Printf("\n%s Web Command Center & Config Wizard listening at %s\n",
 		ui.PrefixGort(), ui.BoldGreen("http://localhost"+addr))
@@ -163,12 +172,16 @@ func printPluginCatalog(db *store.SQLiteStore) error {
 		ui.BoldCyan("GORT SQLite Redteam Plugin Catalog"),
 		ui.Bold(fmt.Sprintf("%d plugins", len(all))),
 		ui.Bold(fmt.Sprintf("%d collections", len(cols))))
+	printPluginRows(all)
+	return nil
+}
+
+func printPluginRows(all []store.PluginRecord) {
 	for i, d := range all {
 		badge := ui.PadRightVisible(ui.Badge(string(d.Severity)), 11)
 		fmt.Printf("  %3d. %-48s | %-12s | %s | %s\n",
 			i+1, ui.Bold(d.ID), ui.Cyan(d.Category), badge, ui.Dim(d.Description))
 	}
-	return nil
 }
 
 func printDatasetCatalog(db *store.SQLiteStore) error {
@@ -197,8 +210,15 @@ func runPullDatasets(db *store.SQLiteStore) error {
 	return printDatasetCatalog(db)
 }
 
-func executeAssessment(configPath string, datasetArgs []string, verbose bool, db *store.SQLiteStore, in io.Reader) error {
-	cfg, err := runInteractiveValidation(configPath, db, in)
+type assessmentContext struct {
+	configPath string
+	cfg        *domain.Config
+	db         *store.SQLiteStore
+	isVerbose  bool
+}
+
+func executeAssessment(parsed parsedCLI, db *store.SQLiteStore, in io.Reader) error {
+	cfg, err := runInteractiveValidation(parsed.ConfigPath, db, in)
 	if err != nil {
 		return err
 	}
@@ -207,59 +227,68 @@ func executeAssessment(configPath string, datasetArgs []string, verbose bool, db
 		return err
 	}
 	cfg.Redteam.Plugins = expanded
-	if len(datasetArgs) == 0 {
-		return executeAttackerSynthesisFlow(&cfg, verbose, db, in)
+	ac := &assessmentContext{configPath: parsed.ConfigPath, cfg: &cfg, db: db, isVerbose: parsed.Verbose}
+	if len(parsed.DatasetArgs) == 0 {
+		return ac.executeAttackerSynthesisFlow(in)
 	}
-	return executeDatasetFlow(configPath, &cfg, verbose, db, datasetArgs)
+	return ac.executeDatasetFlow(parsed.DatasetArgs)
 }
 
-func executeAttackerSynthesisFlow(cfg *domain.Config, verbose bool, db *store.SQLiteStore, in io.Reader) error {
-	confirmed, err := promptAttackerConfirmation(cfg, in)
+func (ac *assessmentContext) executeAttackerSynthesisFlow(in io.Reader) error {
+	confirmed, err := promptAttackerConfirmation(ac.cfg, in)
 	if err != nil || !confirmed {
 		fmt.Printf("%s Operation canceled by user.\n", ui.PrefixGort())
 		return err
 	}
 	ctx := context.Background()
-	allCases, err := synthesizeAllCases(ctx, cfg, verbose, db)
+	allCases, err := ac.synthesizeAllCases(ctx)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("%s Synthesized %s attack prompts. Starting assessment...\n",
 		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", len(allCases))))
-	return runTargetsEvaluation(ctx, cfg, verbose, db, "synthetic_redteam", allCases)
+	return ac.runTargetsEvaluation(ctx, "synthetic_redteam", allCases)
 }
 
-func synthesizeAllCases(ctx context.Context, cfg *domain.Config, verbose bool, db *store.SQLiteStore) ([]domain.TestCase, error) {
-	recMap, err := loadPluginRecordMap(ctx, db)
+func (ac *assessmentContext) synthesizeAllCases(ctx context.Context) ([]domain.TestCase, error) {
+	recMap, err := loadPluginRecordMap(ctx, ac.db)
 	if err != nil {
 		return nil, err
 	}
-	attacker := buildProviderFromSpec(cfg.Attacker)
+	attacker := buildProviderFromSpec(ac.cfg.Attacker)
 	syn := plugin.NewSynthesizer(attacker)
 	fmt.Printf("\n%s Synthesizing dynamic prompts via Attacker LLM (%s)...\n",
 		ui.PrefixGort(), ui.Bold(attacker.ID()))
-	return collectSynthesizedCases(ctx, syn, cfg, verbose, recMap)
+	return ac.collectSynthesizedCases(ctx, syn, recMap)
 }
 
-func collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, cfg *domain.Config, verbose bool, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
+func (ac *assessmentContext) collectSynthesizedCases(ctx context.Context, syn *plugin.Synthesizer, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
 	var allCases []domain.TestCase
-	for _, spec := range cfg.Redteam.Plugins {
-		rec := resolvePluginRecord(spec, recMap)
-		cases, err := syn.SynthesizeBatch(ctx, rec, spec.NumTests, cfg.Purpose, cfg.Redteam.Languages)
+	for _, spec := range ac.cfg.Redteam.Plugins {
+		cases, err := ac.synthesizePluginSpec(ctx, syn, spec, recMap)
 		if err != nil {
 			fmt.Printf("  %s Failed synthesizing for %s: %v\n", ui.Badge("FAIL"), spec.ID, err)
 			continue
 		}
-		telemetry.LogSynthesizedCases(spec.ID, cases)
-		if verbose {
-			printVerboseSynthesizedCases(spec.ID, cases)
-		}
 		allCases = append(allCases, cases...)
 	}
 	if len(allCases) == 0 {
-		return nil, fmt.Errorf("no test cases could be synthesized by attacker LLM")
+		return nil, errors.New("no test cases could be synthesized by attacker llm")
 	}
 	return allCases, nil
+}
+
+func (ac *assessmentContext) synthesizePluginSpec(ctx context.Context, syn *plugin.Synthesizer, spec domain.PluginSpec, recMap map[string]store.PluginRecord) ([]domain.TestCase, error) {
+	rec := resolvePluginRecord(spec, recMap)
+	cases, err := syn.SynthesizeBatch(ctx, rec, spec.NumTests, ac.cfg.Purpose, ac.cfg.Redteam.Languages)
+	if err != nil {
+		return nil, err
+	}
+	telemetry.LogSynthesizedCases(spec.ID, cases)
+	if ac.isVerbose {
+		printVerboseSynthesizedCases(spec.ID, cases)
+	}
+	return cases, nil
 }
 
 func printVerboseSynthesizedCases(pluginID string, cases []domain.TestCase) {
@@ -291,32 +320,48 @@ func resolvePluginRecord(spec domain.PluginSpec, recMap map[string]store.PluginR
 	return store.PluginRecord{ID: spec.ID, Category: "redteam", Severity: spec.Severity, Description: spec.ID}
 }
 
-func runTargetsEvaluation(ctx context.Context, cfg *domain.Config, verbose bool, db *store.SQLiteStore, setName string, cases []domain.TestCase) error {
-	judge := buildJudgeProvider(cfg.Judge)
-	attacker := buildAttackerProvider(cfg.Attacker)
-	attacker, judge = provider.WrapSharedSequential(attacker, judge, cfg.SequentialSharedLLM)
-	exemptMap := loadStrategyExemptMap(ctx, db)
-	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
-	evaluator := engine.NewEvaluator(db, judge, cfg.Judge.Rubric, cfg.MaxConcurrency)
-	evaluator.SetVerbose(verbose)
+type targetBatchRunner struct {
+	cfg       *domain.Config
+	evaluator *engine.Evaluator
+	attacker  domain.Provider
+	exemptMap map[string]bool
+	injectVar string
+}
 
-	for _, targetSpec := range cfg.Targets {
-		if err := evaluateSingleTarget(ctx, cfg, evaluator, targetSpec, attacker, exemptMap, injectVar, setName, cases); err != nil {
+func (ac *assessmentContext) runTargetsEvaluation(ctx context.Context, setName string, cases []domain.TestCase) error {
+	judge := buildJudgeProvider(ac.cfg.Judge)
+	attacker := buildAttackerProvider(ac.cfg.Attacker)
+	attacker, judge = provider.WrapSharedSequential(attacker, judge, ac.cfg.SequentialSharedLLM)
+	evaluator := engine.NewEvaluator(ac.db, judge, ac.cfg.Judge.Rubric, ac.cfg.MaxConcurrency)
+	evaluator.SetVerbose(ac.isVerbose)
+	runner := &targetBatchRunner{
+		cfg:       ac.cfg,
+		evaluator: evaluator,
+		attacker:  attacker,
+		exemptMap: loadStrategyExemptMap(ctx, ac.db),
+		injectVar: template.ResolveInjectVar(ac.cfg.InjectVar, ac.cfg.PromptTemplate),
+	}
+	return runner.runAll(ctx, setName, cases)
+}
+
+func (r *targetBatchRunner) runAll(ctx context.Context, setName string, cases []domain.TestCase) error {
+	for _, targetSpec := range r.cfg.Targets {
+		if err := r.evaluateSingleTarget(ctx, targetSpec, setName, cases); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func evaluateSingleTarget(ctx context.Context, cfg *domain.Config, evaluator *engine.Evaluator, targetSpec domain.ProviderSpec, attacker domain.Provider, exemptMap map[string]bool, injectVar, setName string, cases []domain.TestCase) error {
+func (r *targetBatchRunner) evaluateSingleTarget(ctx context.Context, targetSpec domain.ProviderSpec, setName string, cases []domain.TestCase) error {
 	target := buildProviderFromSpec(targetSpec)
-	expanded, err := strategy.ExpandForTarget(ctx, cases, cfg.Strategies, exemptMap, injectVar, target, attacker)
+	expanded, err := strategy.ExpandForTarget(ctx, cases, r.cfg.Strategies, r.exemptMap, r.injectVar, target, r.attacker)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("       Target: %s | Test Cases (after strategies): %s | Live Log: %s\n",
 		ui.Bold(target.ID()), ui.BoldGreen(fmt.Sprintf("%d", len(expanded))), ui.Cyan("tail -f "+telemetry.DefaultLogPath))
-	run, err := evaluator.ExecuteRun(ctx, cfg, expanded, target)
+	run, err := r.evaluator.ExecuteRun(ctx, r.cfg, expanded, target)
 	if err != nil {
 		return err
 	}
@@ -350,23 +395,23 @@ func promptAttackerConfirmation(cfg *domain.Config, in io.Reader) (bool, error) 
 	}
 	fmt.Print("Proceed with prompt generation? [y/N]: ")
 	line, err := bufio.NewReader(in).ReadString('\n')
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return false, err
 	}
 	ans := strings.ToLower(strings.TrimSpace(line))
 	return ans == "y" || ans == "yes", nil
 }
 
-func executeDatasetFlow(configPath string, cfg *domain.Config, verbose bool, db *store.SQLiteStore, datasetArgs []string) error {
-	sets, err := dataset.ResolveDatasets(context.Background(), db, cfg.PromptsDir, datasetArgs)
+func (ac *assessmentContext) executeDatasetFlow(datasetArgs []string) error {
+	sets, err := dataset.ResolveDatasets(context.Background(), ac.db, ac.cfg.PromptsDir, datasetArgs)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("%s Loaded Config   : %s | Targets: %d | Judge: %s | Active Plugins: %d | Strategies: %d (%s)\n",
-		ui.PrefixGort(), configPath, len(cfg.Targets), cfg.Judge.ID, len(cfg.Redteam.Plugins), len(cfg.Strategies), joinStrategyIDs(cfg.Strategies))
+		ui.PrefixGort(), ac.configPath, len(ac.cfg.Targets), ac.cfg.Judge.ID, len(ac.cfg.Redteam.Plugins), len(ac.cfg.Strategies), joinStrategyIDs(ac.cfg.Strategies))
 
 	for i, set := range sets {
-		if err := runSingleNamedSet(i+1, len(sets), cfg, verbose, db, set); err != nil {
+		if err := ac.runSingleNamedSet(i+1, len(sets), set); err != nil {
 			fmt.Printf("%s Error executing prompt set %s: %v\n", ui.PrefixGort(), set.Name, err)
 		}
 	}
@@ -381,12 +426,12 @@ func joinStrategyIDs(strategies []domain.StrategySpec) string {
 	return strings.Join(ids, ", ")
 }
 
-func runSingleNamedSet(idx, total int, cfg *domain.Config, verbose bool, db *store.SQLiteStore, set dataset.NamedDataset) error {
-	injectVar := template.ResolveInjectVar(cfg.InjectVar, cfg.PromptTemplate)
+func (ac *assessmentContext) runSingleNamedSet(idx, total int, set dataset.NamedDataset) error {
+	injectVar := template.ResolveInjectVar(ac.cfg.InjectVar, ac.cfg.PromptTemplate)
 	cases := dataset.RecordsToTestCases(set.Records, injectVar)
 	fmt.Printf("\n%s [%d/%d] Running Prompt Set %s : %s seed prompts (via SQLite prompt_bank)\n",
 		ui.PrefixGort(), idx, total, ui.BoldCyan(set.Name), ui.BoldGreen(fmt.Sprintf("%d", len(cases))))
-	return runTargetsEvaluation(context.Background(), cfg, verbose, db, set.Name, cases)
+	return ac.runTargetsEvaluation(context.Background(), set.Name, cases)
 }
 
 func printRunCompletionCard(setName string, run domain.EvalRun) {

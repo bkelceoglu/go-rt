@@ -8,6 +8,7 @@ import (
 )
 
 func TestTraceAndSpanIDGeneration(t *testing.T) {
+	t.Parallel()
 	traceID := GenerateTraceID()
 	if len(traceID) != 32 {
 		t.Fatalf("expected 32 hex chars for TraceID, got %d (%s)", len(traceID), traceID)
@@ -26,6 +27,7 @@ func TestTraceAndSpanIDGeneration(t *testing.T) {
 }
 
 func TestSpanLifecycle(t *testing.T) {
+	t.Parallel()
 	span := NewSpan("", "", "eval-1", "res-1", "gort.test_case", domain.SpanKindClient)
 	if span.TraceID == "" || span.SpanID == "" {
 		t.Errorf("expected non-empty trace and span IDs")
@@ -47,6 +49,7 @@ func TestSpanLifecycle(t *testing.T) {
 }
 
 func TestSemanticAttributes(t *testing.T) {
+	t.Parallel()
 	usage := domain.TokenUsage{Prompt: 10, Completion: 5, Total: 15}
 	genAI := BuildGenAIAttributes("ollama", "llama3.1:8b", usage, 150)
 	if genAI["gen_ai.system"] != "ollama" || genAI["gen_ai.usage.total_tokens"] != 15 {

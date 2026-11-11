@@ -22,7 +22,7 @@ type ConversationTurn struct {
 	Role      string    `json:"role"`
 	Prompt    string    `json:"prompt"`
 	Output    string    `json:"output"`
-	Backtrack bool      `json:"backtrack,omitempty"`
+	Backtrack bool      `json:"backtrack,omitzero"`
 	Timestamp time.Time `json:"timestamp"`
 }
 

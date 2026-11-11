@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/caveman/go-rt/internal/config"
@@ -14,6 +16,14 @@ import (
 	"github.com/caveman/go-rt/internal/store"
 	"github.com/caveman/go-rt/internal/ui"
 )
+
+type repairContext struct {
+	configPath string
+	raw        []byte
+	rep        config.ValidationReport
+	cfg        domain.Config
+	cat        *config.CatalogSnapshot
+}
 
 func runInteractiveValidation(configPath string, db *store.SQLiteStore, in io.Reader) (domain.Config, error) {
 	cat := plugin.BuildCatalogSnapshot(context.Background(), db)
@@ -34,7 +44,8 @@ func validateSingleIteration(configPath string, cat *config.CatalogSnapshot, r *
 	rep, cfg := config.ValidateYAML(raw, cat)
 	printValidationReport(configPath, rep)
 	if !rep.Valid || len(rep.Issues) > 0 || rep.NeedsAttackerResolution {
-		return handleInteractiveRepair(configPath, raw, rep, cfg, cat, r)
+		rc := &repairContext{configPath: configPath, raw: raw, rep: rep, cfg: cfg, cat: cat}
+		return rc.handleInteractiveRepair(r)
 	}
 	checkAndPrintEndpointsHealth(cfg)
 	return cfg, true, nil
@@ -64,34 +75,31 @@ func printValidationReport(configPath string, rep config.ValidationReport) {
 	}
 	fmt.Printf("\n%s Configuration Validation Report for %s:\n", ui.PrefixGort(), ui.Bold(configPath))
 	for i, iss := range rep.Issues {
-		badge := ui.Badge("WARN")
-		if iss.Severity == config.IssueError {
-			badge = ui.Badge("FAIL")
-		}
-		fmt.Printf("  %2d. %s [%s] %s: %s\n", i+1, badge, ui.Cyan(iss.Code), ui.Bold(iss.Field), iss.Message)
-		if iss.Suggestion != "" {
-			fmt.Printf("      %s %s\n", ui.Dim("Suggestion:"), ui.Yellow(iss.Suggestion))
-		}
+		printSingleValidationIssue(i+1, iss)
 	}
 }
 
-func handleInteractiveRepair(
-	configPath string,
-	raw []byte,
-	rep config.ValidationReport,
-	cfg domain.Config,
-	cat *config.CatalogSnapshot,
-	r *bufio.Reader,
-) (domain.Config, bool, error) {
-	opts := config.AutoFixOptions{}
-	if rep.NeedsAttackerResolution {
-		opts = promptCLIAttackerResolution(r, rep.AttackerDependentStrategies)
+func printSingleValidationIssue(idx int, iss config.ValidationIssue) {
+	badge := ui.Badge("WARN")
+	if iss.Severity == config.IssueError {
+		badge = ui.Badge("FAIL")
 	}
-	res, ok, err := executeSelectedAutoFix(raw, rep, cfg, cat, opts, r)
+	fmt.Printf("  %2d. %s [%s] %s: %s\n", idx, badge, ui.Cyan(iss.Code), ui.Bold(iss.Field), iss.Message)
+	if iss.Suggestion != "" {
+		fmt.Printf("      %s %s\n", ui.Dim("Suggestion:"), ui.Yellow(iss.Suggestion))
+	}
+}
+
+func (rc *repairContext) handleInteractiveRepair(r *bufio.Reader) (domain.Config, bool, error) {
+	var opts config.AutoFixOptions
+	if rc.rep.NeedsAttackerResolution {
+		opts = promptCLIAttackerResolution(r, rc.rep.AttackerDependentStrategies)
+	}
+	res, ok, err := rc.executeSelectedAutoFix(opts, r)
 	if err != nil || !ok {
-		return promptManualRevalidate(configPath, rep, cfg, r)
+		return rc.promptManualRevalidate(r)
 	}
-	return confirmAndPersistFix(configPath, res, r)
+	return confirmAndPersistFix(rc.configPath, res, r)
 }
 
 func promptCLIAttackerResolution(r *bufio.Reader, strategies []string) config.AutoFixOptions {
@@ -101,8 +109,7 @@ func promptCLIAttackerResolution(r *bufio.Reader, strategies []string) config.Au
 	fmt.Println("  [2] No Attacker LLM -> Remove Attacker-dependent strategies from config")
 	fmt.Println("  [3] No Attacker LLM -> Reuse Judge LLM sequentially (Attack first, then Judge)")
 	fmt.Print("Select resolution option [1/2/3] (default 3): ")
-	choice := readTrimmedLine(r)
-	switch choice {
+	switch readTrimmedLine(r) {
 	case "1":
 		return promptCustomAttackerSpec(r)
 	case "2":
@@ -124,16 +131,9 @@ func promptCustomAttackerSpec(r *bufio.Reader) config.AutoFixOptions {
 	}
 }
 
-func executeSelectedAutoFix(
-	raw []byte,
-	rep config.ValidationReport,
-	cfg domain.Config,
-	cat *config.CatalogSnapshot,
-	opts config.AutoFixOptions,
-	r *bufio.Reader,
-) (config.AutoFixResult, bool, error) {
-	if !hasFormatOrCatalogIssues(rep) && opts.AttackerResolution != config.ResolveNone {
-		res, err := config.AutoFixMiniEngine(raw, cat, opts)
+func (rc *repairContext) executeSelectedAutoFix(opts config.AutoFixOptions, r *bufio.Reader) (config.AutoFixResult, bool, error) {
+	if !hasFormatOrCatalogIssues(rc.rep) && opts.AttackerResolution != config.ResolveNone {
+		res, err := config.AutoFixMiniEngine(rc.raw, rc.cat, opts)
 		return res, err == nil, err
 	}
 	engineChoice := promptAutoFixEngineChoice(r)
@@ -141,21 +141,18 @@ func executeSelectedAutoFix(
 		return config.AutoFixResult{}, false, nil
 	}
 	if engineChoice == "2" {
-		judge := buildJudgeProvider(cfg.Judge)
-		res, err := config.AutoFixWithJudgeLLM(context.Background(), judge, raw, cat, opts)
+		judge := buildJudgeProvider(rc.cfg.Judge)
+		res, err := config.AutoFixWithJudgeLLM(context.Background(), judge, rc.raw, rc.cat, opts)
 		return res, err == nil, err
 	}
-	res, err := config.AutoFixMiniEngine(raw, cat, opts)
+	res, err := config.AutoFixMiniEngine(rc.raw, rc.cat, opts)
 	return res, err == nil, err
 }
 
 func hasFormatOrCatalogIssues(rep config.ValidationReport) bool {
-	for _, iss := range rep.Issues {
-		if iss.Code != "LOGIC_MISSING_ATTACKER" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(rep.Issues, func(iss config.ValidationIssue) bool {
+		return iss.Code != "LOGIC_MISSING_ATTACKER"
+	})
 }
 
 func promptAutoFixEngineChoice(r *bufio.Reader) string {
@@ -165,11 +162,7 @@ func promptAutoFixEngineChoice(r *bufio.Reader) string {
 	fmt.Println("  [2] Judge LLM Repair (AI syntax repair via configured Judge LLM + Mini Engine check)")
 	fmt.Println("  [N] Skip auto-fix and edit file manually")
 	fmt.Print("Choice [1/2/N] (default 1): ")
-	ans := strings.ToLower(readTrimmedLine(r))
-	if ans == "" {
-		return "1"
-	}
-	return ans
+	return cmp.Or(strings.ToLower(readTrimmedLine(r)), "1")
 }
 
 func confirmAndPersistFix(configPath string, res config.AutoFixResult, r *bufio.Reader) (domain.Config, bool, error) {
@@ -189,16 +182,16 @@ func confirmAndPersistFix(configPath string, res config.AutoFixResult, r *bufio.
 	return domain.Config{}, false, nil
 }
 
-func promptManualRevalidate(configPath string, rep config.ValidationReport, cfg domain.Config, r *bufio.Reader) (domain.Config, bool, error) {
-	fmt.Printf("Edit %s manually and press [y] to re-validate, or [N] to abort [y/N]: ", configPath)
+func (rc *repairContext) promptManualRevalidate(r *bufio.Reader) (domain.Config, bool, error) {
+	fmt.Printf("Edit %s manually and press [y] to re-validate, or [N] to abort [y/N]: ", rc.configPath)
 	ans := strings.ToLower(readTrimmedLine(r))
 	if ans == "y" || ans == "yes" {
 		return domain.Config{}, false, nil
 	}
-	if rep.Valid {
-		return cfg, true, nil
+	if rc.rep.Valid {
+		return rc.cfg, true, nil
 	}
-	return domain.Config{}, true, fmt.Errorf("configuration %s failed validation", configPath)
+	return domain.Config{}, true, fmt.Errorf("configuration %s failed validation", rc.configPath)
 }
 
 func readTrimmedLine(r *bufio.Reader) string {

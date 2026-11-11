@@ -8,6 +8,8 @@ import (
 	"github.com/caveman/go-rt/internal/store"
 )
 
+var _ domain.Provider = (*mockAttacker)(nil)
+
 type mockAttacker struct {
 	response string
 }
@@ -16,7 +18,7 @@ func (m *mockAttacker) ID() string {
 	return "mock:attacker"
 }
 
-func (m *mockAttacker) Call(ctx context.Context, req domain.PromptRequest) (domain.ProviderResponse, error) {
+func (m *mockAttacker) Call(_ context.Context, _ domain.PromptRequest) (domain.ProviderResponse, error) {
 	return domain.ProviderResponse{Output: m.response}, nil
 }
 
@@ -33,7 +35,7 @@ func TestSynthesizeBatchStandardJSON(t *testing.T) {
 		Description: "Sandbox file read traversal",
 	}
 
-	cases, err := syn.SynthesizeBatch(context.Background(), p, 2, "Test assistant", []string{"en"})
+	cases, err := syn.SynthesizeBatch(t.Context(), p, 2, "Test assistant", []string{"en"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestSynthesizeBatchMarkdownFallback(t *testing.T) {
 	syn := NewSynthesizer(mock)
 	p := store.PluginRecord{ID: "gort:plugin:prompt-extraction", Category: "extraction"}
 
-	cases, err := syn.SynthesizeBatch(context.Background(), p, 1, "Assistant", []string{"en"})
+	cases, err := syn.SynthesizeBatch(t.Context(), p, 1, "Assistant", []string{"en"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

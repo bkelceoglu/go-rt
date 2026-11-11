@@ -2,17 +2,21 @@ package provider
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/caveman/go-rt/internal/domain"
 )
+
+var _ domain.Provider = (*OpenAICompatibleProvider)(nil)
 
 // OpenAICompatibleProvider handles OpenAI, Ollama, vLLM, and any v1/chat/completions endpoint.
 type OpenAICompatibleProvider struct {
@@ -28,14 +32,11 @@ func NewOpenAICompatible(spec domain.ProviderSpec, client *http.Client) *OpenAIC
 	if client == nil {
 		client = &http.Client{Timeout: 90 * time.Second}
 	}
-	model := resolveModelName(spec.ID)
-	baseURL := resolveBaseURL(spec.ID, spec.BaseURL)
-	apiKey := resolveAPIKey(spec.ID, spec.APIKey)
 	return &OpenAICompatibleProvider{
 		spec:       spec,
-		modelName:  model,
-		endpoint:   joinCompletionsPath(baseURL),
-		apiKey:     apiKey,
+		modelName:  resolveModelName(spec.ID),
+		endpoint:   joinCompletionsPath(resolveBaseURL(spec.ID, spec.BaseURL)),
+		apiKey:     resolveAPIKey(spec.ID, spec.APIKey),
 		httpClient: client,
 	}
 }
@@ -47,11 +48,7 @@ func (p *OpenAICompatibleProvider) ID() string {
 
 // Call executes a single prompt completion against the target model.
 func (p *OpenAICompatibleProvider) Call(ctx context.Context, req domain.PromptRequest) (domain.ProviderResponse, error) {
-	bodyBytes, err := p.marshalRequestBody(req)
-	if err != nil {
-		return domain.ProviderResponse{}, err
-	}
-	httpReq, err := p.buildHTTPRequest(ctx, bodyBytes)
+	httpReq, err := p.prepareChatRequest(ctx, req)
 	if err != nil {
 		return domain.ProviderResponse{}, err
 	}
@@ -60,8 +57,15 @@ func (p *OpenAICompatibleProvider) Call(ctx context.Context, req domain.PromptRe
 	if err != nil {
 		return domain.ProviderResponse{}, err
 	}
-	latency := time.Since(start).Milliseconds()
-	return p.parseAPIResponse(respBytes, statusCode, latency)
+	return p.parseAPIResponse(respBytes, statusCode, time.Since(start).Milliseconds())
+}
+
+func (p *OpenAICompatibleProvider) prepareChatRequest(ctx context.Context, req domain.PromptRequest) (*http.Request, error) {
+	bodyBytes, err := p.marshalRequestBody(req)
+	if err != nil {
+		return nil, err
+	}
+	return p.buildHTTPRequest(ctx, bodyBytes)
 }
 
 func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) ([]byte, error) {
@@ -75,22 +79,24 @@ func (p *OpenAICompatibleProvider) marshalRequestBody(req domain.PromptRequest) 
 	if p.spec.MaxToks > 0 {
 		payload["max_tokens"] = p.spec.MaxToks
 	}
-	return json.Marshal(payload)
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request body for %s: %w", p.spec.ID, err)
+	}
+	return data, nil
 }
 
 func buildOpenAIMessages(req domain.PromptRequest, think *bool) []domain.Message {
 	if len(req.Messages) > 0 {
-		msgs := make([]domain.Message, len(req.Messages))
-		copy(msgs, req.Messages)
+		msgs := slices.Clone(req.Messages)
 		lastIdx := len(msgs) - 1
 		if msgs[lastIdx].Role == "user" {
 			msgs[lastIdx].Content = applyThinkDirective(msgs[lastIdx].Content, think)
 		}
 		return msgs
 	}
-	content := applyThinkDirective(req.Prompt, think)
 	return []domain.Message{
-		{Role: "user", Content: content},
+		{Role: "user", Content: applyThinkDirective(req.Prompt, think)},
 	}
 }
 
@@ -134,7 +140,7 @@ func (p *OpenAICompatibleProvider) executeHTTP(req *http.Request) ([]byte, int, 
 
 func (p *OpenAICompatibleProvider) parseAPIResponse(data []byte, status int, latency int64) (domain.ProviderResponse, error) {
 	if status < 200 || status >= 300 {
-		return domain.ProviderResponse{}, fmt.Errorf("provider %s returned HTTP %d: %s", p.spec.ID, status, string(data))
+		return domain.ProviderResponse{}, fmt.Errorf("provider %s returned http %d: %s", p.spec.ID, status, string(data))
 	}
 	var raw chatCompletionResponse
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -144,15 +150,8 @@ func (p *OpenAICompatibleProvider) parseAPIResponse(data []byte, status int, lat
 }
 
 func buildProviderResponse(raw chatCompletionResponse, latency int64) domain.ProviderResponse {
-	output := ""
-	if len(raw.Choices) > 0 {
-		output = strings.TrimSpace(raw.Choices[0].Message.Content)
-		if output == "" {
-			output = strings.TrimSpace(raw.Choices[0].Message.Reasoning)
-		}
-	}
 	return domain.ProviderResponse{
-		Output:    output,
+		Output:    extractChoiceText(raw.Choices),
 		LatencyMs: latency,
 		TokenUsage: domain.TokenUsage{
 			Prompt:     raw.Usage.PromptTokens,
@@ -163,29 +162,34 @@ func buildProviderResponse(raw chatCompletionResponse, latency int64) domain.Pro
 	}
 }
 
-func resolveModelName(id string) string {
-	prefixes := []string{
-		"llamacpp:chat:", "llamacpp:",
-		"llama:chat:", "llama:",
-		"localai:chat:", "localai:",
-		"openai:chat:", "openai:",
-		"ollama:chat:", "ollama:",
-		"vllm:chat:", "vllm:",
+func extractChoiceText(choices []chatChoice) string {
+	if len(choices) == 0 {
+		return ""
 	}
-	for _, p := range prefixes {
-		if strings.HasPrefix(id, p) {
-			return strings.TrimPrefix(id, p)
+	return cmp.Or(strings.TrimSpace(choices[0].Message.Content), strings.TrimSpace(choices[0].Message.Reasoning))
+}
+
+var knownModelPrefixes = []string{
+	"llamacpp:chat:", "llamacpp:",
+	"llama:chat:", "llama:",
+	"localai:chat:", "localai:",
+	"openai:chat:", "openai:",
+	"ollama:chat:", "ollama:",
+	"vllm:chat:", "vllm:",
+}
+
+func resolveModelName(id string) string {
+	for _, p := range knownModelPrefixes {
+		if after, ok := strings.CutPrefix(id, p); ok {
+			return after
 		}
 	}
 	return id
 }
 
 func resolveBaseURL(id, explicit string) string {
-	if explicit != "" {
-		return strings.TrimRight(explicit, "/")
-	}
-	if envURL := resolveEnvBaseURL(id); envURL != "" {
-		return strings.TrimRight(envURL, "/")
+	if url := cmp.Or(explicit, resolveEnvBaseURL(id)); url != "" {
+		return strings.TrimRight(url, "/")
 	}
 	return defaultBaseURL(id)
 }
@@ -197,10 +201,7 @@ func resolveEnvBaseURL(id string) string {
 	case strings.HasPrefix(id, "localai"):
 		return os.Getenv("LOCALAI_BASE_URL")
 	case strings.HasPrefix(id, "ollama"):
-		if v := os.Getenv("OLLAMA_BASE_URL"); v != "" {
-			return v
-		}
-		return os.Getenv("OLLAMA_HOST")
+		return cmp.Or(os.Getenv("OLLAMA_BASE_URL"), os.Getenv("OLLAMA_HOST"))
 	case strings.HasPrefix(id, "openai"):
 		return os.Getenv("OPENAI_BASE_URL")
 	case strings.HasPrefix(id, "vllm"):

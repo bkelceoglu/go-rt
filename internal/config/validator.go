@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -72,7 +73,7 @@ func ValidateYAML(raw []byte, cat *CatalogSnapshot) (ValidationReport, domain.Co
 
 func checkStrictYAMLSyntax(expanded string) error {
 	if strings.TrimSpace(expanded) == "" {
-		return fmt.Errorf("configuration YAML is empty")
+		return errors.New("configuration yaml is empty")
 	}
 	dec := yaml.NewDecoder(bytes.NewReader([]byte(expanded)))
 	dec.KnownFields(true)
@@ -202,7 +203,7 @@ func buildMissingAttackerIssue(dep []string, judgeID string) ValidationIssue {
 
 // FindAttackerDependentStrategies returns all configured strategies that require an Attacker LLM.
 func FindAttackerDependentStrategies(specs []domain.StrategySpec) []string {
-	var out []string
+	out := []string{}
 	for _, s := range specs {
 		norm := normalizeStrategyPrefix(s.ID)
 		if attackerRequiredStrategies[norm] {
@@ -214,10 +215,7 @@ func FindAttackerDependentStrategies(specs []domain.StrategySpec) []string {
 
 func normalizeStrategyPrefix(id string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(id))
-	if strings.HasPrefix(trimmed, "gort:strategy:") {
-		return trimmed
-	}
-	return "gort:strategy:" + trimmed
+	return "gort:strategy:" + strings.TrimPrefix(trimmed, "gort:strategy:")
 }
 
 func hasBlockingErrors(issues []ValidationIssue) bool {

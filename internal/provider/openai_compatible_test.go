@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +28,9 @@ func TestOpenAICompatibleRemoteSimulation(t *testing.T) {
 		resp.Usage.PromptTokens = 12
 		resp.Usage.CompletionTokens = 8
 		resp.Usage.TotalTokens = 20
-		_ = json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -40,7 +41,7 @@ func TestOpenAICompatibleRemoteSimulation(t *testing.T) {
 		Headers: map[string]string{"X-Custom-Env": "production"},
 	}
 	p := NewOpenAICompatible(spec, server.Client())
-	res, err := p.Call(context.Background(), domain.PromptRequest{Prompt: "Explain X"})
+	res, err := p.Call(t.Context(), domain.PromptRequest{Prompt: "Explain X"})
 	if err != nil {
 		t.Fatalf("unexpected call error: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestOpenAICompatibleErrorHandling(t *testing.T) {
 		BaseURL: server.URL,
 	}
 	p := NewOpenAICompatible(spec, server.Client())
-	_, err := p.Call(context.Background(), domain.PromptRequest{Prompt: "hello"})
+	_, err := p.Call(t.Context(), domain.PromptRequest{Prompt: "hello"})
 	if err == nil {
 		t.Fatal("expected error for 429 response, got nil")
 	}
@@ -73,61 +74,73 @@ func TestOpenAICompatibleErrorHandling(t *testing.T) {
 }
 
 func TestResolveModelNameAndBaseURL(t *testing.T) {
-	if resolveModelName("llamacpp:chat:Qwen2.5-7B-Instruct") != "Qwen2.5-7B-Instruct" {
-		t.Errorf("failed resolving llamacpp model name")
-	}
-	if resolveModelName("localai:chat:qwen3.8-9b-q4") != "qwen3.8-9b-q4" {
-		t.Errorf("failed resolving localai model name")
-	}
-	if resolveModelName("ollama:chat:qwen2.5:3b") != "qwen2.5:3b" {
-		t.Errorf("failed resolving ollama model name")
-	}
-	if resolveModelName("openai:gpt-4o") != "gpt-4o" {
-		t.Errorf("failed resolving openai model name")
-	}
-	if resolveBaseURL("llamacpp:chat:Qwen2.5-7B-Instruct", "") != "http://localhost:8080/v1" {
-		t.Errorf("failed resolving default llamacpp base url")
-	}
-	if resolveBaseURL("localai:chat:qwen3.8-9b-q4", "") != "http://localhost:8090/v1" {
-		t.Errorf("failed resolving default localai base url")
-	}
-	if resolveBaseURL("openai:chat:gpt-4o", "") != "https://api.openai.com/v1" {
-		t.Errorf("failed resolving default openai base url")
-	}
-	if resolveBaseURL("ollama:llama3", "") != "http://localhost:11434/v1" {
-		t.Errorf("failed resolving default ollama base url")
-	}
+	t.Run("resolve_model_name", func(t *testing.T) {
+		cases := []struct {
+			id   string
+			want string
+		}{
+			{id: "llamacpp:chat:Qwen2.5-7B-Instruct", want: "Qwen2.5-7B-Instruct"},
+			{id: "localai:chat:qwen3.8-9b-q4", want: "qwen3.8-9b-q4"},
+			{id: "ollama:chat:qwen2.5:3b", want: "qwen2.5:3b"},
+			{id: "openai:gpt-4o", want: "gpt-4o"},
+		}
+		for _, tc := range cases {
+			if got := resolveModelName(tc.id); got != tc.want {
+				t.Errorf("resolveModelName(%q) = %q, want %q", tc.id, got, tc.want)
+			}
+		}
+	})
 
-	t.Setenv("LLAMACPP_BASE_URL", "http://127.0.0.1:8080/v1")
-	if resolveBaseURL("llamacpp:chat:Llama-3.2-3B-Instruct", "") != "http://127.0.0.1:8080/v1" {
-		t.Errorf("failed resolving env LLAMACPP_BASE_URL")
-	}
+	t.Run("resolve_default_base_url", func(t *testing.T) {
+		cases := []struct {
+			id   string
+			want string
+		}{
+			{id: "llamacpp:chat:Qwen2.5-7B-Instruct", want: "http://localhost:8080/v1"},
+			{id: "localai:chat:qwen3.8-9b-q4", want: "http://localhost:8090/v1"},
+			{id: "openai:chat:gpt-4o", want: "https://api.openai.com/v1"},
+			{id: "ollama:llama3", want: "http://localhost:11434/v1"},
+		}
+		for _, tc := range cases {
+			if got := resolveBaseURL(tc.id, ""); got != tc.want {
+				t.Errorf("resolveBaseURL(%q) = %q, want %q", tc.id, got, tc.want)
+			}
+		}
+	})
 
-	t.Setenv("LOCALAI_BASE_URL", "http://127.0.0.1:8090/v1")
-	if resolveBaseURL("localai:chat:qwen3-4b", "") != "http://127.0.0.1:8090/v1" {
-		t.Errorf("failed resolving env LOCALAI_BASE_URL")
-	}
+	t.Run("resolve_env_base_url", func(t *testing.T) {
+		t.Setenv("LLAMACPP_BASE_URL", "http://127.0.0.1:8080/v1")
+		if resolveBaseURL("llamacpp:chat:Llama-3.2-3B-Instruct", "") != "http://127.0.0.1:8080/v1" {
+			t.Errorf("failed resolving env LLAMACPP_BASE_URL")
+		}
 
-	t.Setenv("OLLAMA_BASE_URL", "http://gpu-rig.local:11434/v1")
-	if resolveBaseURL("ollama:llama3", "") != "http://gpu-rig.local:11434/v1" {
-		t.Errorf("failed resolving env OLLAMA_BASE_URL")
-	}
+		t.Setenv("LOCALAI_BASE_URL", "http://127.0.0.1:8090/v1")
+		if resolveBaseURL("localai:chat:qwen3-4b", "") != "http://127.0.0.1:8090/v1" {
+			t.Errorf("failed resolving env LOCALAI_BASE_URL")
+		}
 
-	t.Setenv("OPENAI_BASE_URL", "https://custom-gateway.internal/v1")
-	if resolveBaseURL("openai:chat:gpt-4o", "") != "https://custom-gateway.internal/v1" {
-		t.Errorf("failed resolving env OPENAI_BASE_URL")
-	}
+		t.Setenv("OLLAMA_BASE_URL", "http://gpu-rig.local:11434/v1")
+		if resolveBaseURL("ollama:llama3", "") != "http://gpu-rig.local:11434/v1" {
+			t.Errorf("failed resolving env OLLAMA_BASE_URL")
+		}
 
-	f, tr := false, true
-	if applyThinkDirective("hello", nil) != "hello" {
-		t.Errorf("expected nil think to leave prompt untouched")
-	}
-	if applyThinkDirective("hello", &f) != "/no_think\nhello" {
-		t.Errorf("expected false think to prepend /no_think")
-	}
-	if applyThinkDirective("hello", &tr) != "/think\nhello" {
-		t.Errorf("expected true think to prepend /think")
-	}
+		t.Setenv("OPENAI_BASE_URL", "https://custom-gateway.internal/v1")
+		if resolveBaseURL("openai:chat:gpt-4o", "") != "https://custom-gateway.internal/v1" {
+			t.Errorf("failed resolving env OPENAI_BASE_URL")
+		}
+	})
+
+	t.Run("think_directive", func(t *testing.T) {
+		if applyThinkDirective("hello", nil) != "hello" {
+			t.Errorf("expected nil think to leave prompt untouched")
+		}
+		if applyThinkDirective("hello", new(false)) != "/no_think\nhello" {
+			t.Errorf("expected false think to prepend /no_think")
+		}
+		if applyThinkDirective("hello", new(true)) != "/think\nhello" {
+			t.Errorf("expected true think to prepend /think")
+		}
+	})
 }
 
 func TestOpenAICompatibleMultiTurnMessages(t *testing.T) {
@@ -136,14 +149,18 @@ func TestOpenAICompatibleMultiTurnMessages(t *testing.T) {
 		var req struct {
 			Messages []domain.Message `json:"messages"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
 		capturedMessages = req.Messages
 		resp := chatCompletionResponse{
 			Choices: []chatChoice{
 				{Message: chatMessage{Role: "assistant", Content: "Understood."}},
 			},
 		}
-		_ = json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -160,7 +177,7 @@ func TestOpenAICompatibleMultiTurnMessages(t *testing.T) {
 			{Role: "user", Content: "What is my name?"},
 		},
 	}
-	_, err := p.Call(context.Background(), req)
+	_, err := p.Call(t.Context(), req)
 	if err != nil {
 		t.Fatalf("unexpected call error: %v", err)
 	}

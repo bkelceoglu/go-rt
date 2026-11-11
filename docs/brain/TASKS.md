@@ -105,3 +105,22 @@
   - Hardcoded model isimlerinin (`Qwen2.5-7B`, `llama3.1:8b`, `gpt-4o-mini`) ve `~/.models` klasör varsayımının kod tabanından tamamen kaldırılması.
   - Dinamik provider şablonları (`ollama`, `llamacpp`, `vllm`, `localai`, `openai`, `webhook`) ve resmi varsayılan portlarla otomatik dolan ancak kullanıcı tarafından %100 düzenlenebilir Base URL mimarisi.
   - Doğrulama/Kaydetme öncesinde `CheckProvidersReachability` ile hem CLI (`gort validate`) hem Web UI (`⚡ Test Ping` & `✓ Validate`) üzerinden canlı network socket ve kimlik doğrulama kontrolleri (`● Online (HTTP 200)` / `○ Unreachable`).
+
+---
+
+## Faz 8: `golang-pro` (Go 1.27+) Kod Tabanı Denetimi, Güvenlik & Eşzamanlılık Modernizasyonu — ✅ TAMAMLANDI
+- [x] **Adım 8.1 — P0 Eşzamanlılık, Yarış Durumu (Race Condition) ve `synctest` İyileştirmeleri (`internal/ui`, `internal/provider`, `internal/dataset`):**
+  - `internal/ui/ansi.go`: `ForceColor` global değişkeni veri yarışını önlemek için `atomic.Bool` (`SetForceColor`, `IsForceColor`) yapısına geçirildi.
+  - `internal/provider/serialized.go`: `sync.Mutex` yerine context iptaline duyarlı 1-kapasiteli kanal semaforu (`sem chan struct{}`) ile donma (deadlock/hang) koruması sağlandı.
+  - `internal/provider/ratelimit_test.go`: `testing/synctest` sanal saat balonu ile deterministik ve milisaniye seviyesinde hız sınırı testleri eklendi.
+  - `internal/dataset/benchmarks.go` & `huggingface.go`: Deterministik karıştırma (`math/rand/v2` PCG tohumu) ve context-duyarlı `time.NewTimer` geri çekilme (backoff) mekanizması eklendi.
+- [x] **Adım 8.2 — P1 Güvenlik (`os.OpenRoot`) ve Web Sunucu Yaşam Döngüsü (`internal/web`):**
+  - `internal/web/api_config.go` & `assessment_runner.go`: `os.OpenRoot` ile sembolik bağ (symlink) ve dizin aşımı (path traversal) koruması eklendi.
+  - `internal/web/api_config.go`: `handleGetConfig` içinde `${ENV}` değişkenlerinin web arayüzüne sızmasını önlemek için ham YAML (`LoadRawFile`) okuma ayrımı yapıldı.
+  - `internal/web/assessment_runner.go`: Arka plan değerlendirme goroutine'leri `sync.WaitGroup.Go` ve sunucu kapanış (`Shutdown`) kancası ile birleştirildi.
+- [x] **Adım 8.3 — P2 Go 1.27 Modern Stdlib Deyimleri (Tüm Paketler):**
+  - `json:"...,omitzero"` etiketleri (`internal/domain/config.go`), `new(expr)` yardımcı fonksiyon sadeleştirmesi (`internal/provider/openai_compatible.go`), `strings.SplitSeq` / `FieldsSeq` / `CutPrefix` / `CutLast` sıfır tahsisli (zero-allocation) iteratörler, `slices.Sorted(maps.Keys(m))` ve `slices.ContainsFunc` tüm paketlere uygulandı.
+- [x] **Adım 8.4 — P3 Mimari, Atomik Fonksiyonlar (≤15 Satır, ≤4 Parametre) ve Test İskeleti:**
+  - Tüm paketlerde derleme zamanı arayüz kontrolleri (`var _ domain.Provider = (*Client)(nil)` vb.) eklendi.
+  - Uzun veya >4 parametreli fonksiyonlar bağlam yapıları (`evalRunContext`, `assessmentContext`, `targetBatchRunner`, `repairContext` vb.) ve tablo güdümlü (map-based) alt komut yönlendiricileri ile ≤15 satırlık atomik fonksiyonlara bölündü.
+  - Tüm test dosyaları `1:1` dosya eşleşmesi (`loader_test.go`, `sqlite_eval_test.go`, `extractor_test.go`, `renderer_test.go`, `validator_cli_test.go`, `autofix_test.go`, `factory_test.go`, `unblocking_test.go`), `t.Context()` ve `t.Run` alt testleri ile modernize edildi; `Makefile` içine `make test-race` eklendi.

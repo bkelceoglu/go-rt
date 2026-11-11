@@ -2,8 +2,10 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/caveman/go-rt/internal/domain"
@@ -38,18 +40,22 @@ type AutoFixResult struct {
 
 // AutoFixMiniEngine deterministically repairs YAML syntax, key typos, catalog IDs, and Attacker logic.
 func AutoFixMiniEngine(raw []byte, cat *CatalogSnapshot, opts AutoFixOptions) (AutoFixResult, error) {
-	var fixes []string
+	fixes := []string{}
 	cleaned := sanitizeRawYAMLText(string(raw), &fixes)
 	var cfg domain.Config
 	if err := yaml.Unmarshal([]byte(cleaned), &cfg); err != nil {
-		return AutoFixResult{}, fmt.Errorf("mini-engine could not parse YAML: %w", err)
+		return AutoFixResult{}, fmt.Errorf("mini-engine could not parse yaml: %w", err)
 	}
-	applyDefaults(&cfg)
-	repairStructuralFields(&cfg, cat, &fixes)
-	applyAttackerResolution(&cfg, opts, &fixes)
-	outBytes, err := yaml.Marshal(&cfg)
+	return finalizeMiniEngineRepair(&cfg, cat, opts, fixes)
+}
+
+func finalizeMiniEngineRepair(cfg *domain.Config, cat *CatalogSnapshot, opts AutoFixOptions, fixes []string) (AutoFixResult, error) {
+	applyDefaults(cfg)
+	repairStructuralFields(cfg, cat, &fixes)
+	applyAttackerResolution(cfg, opts, &fixes)
+	outBytes, err := yaml.Marshal(cfg)
 	if err != nil {
-		return AutoFixResult{}, err
+		return AutoFixResult{}, fmt.Errorf("marshal repaired yaml: %w", err)
 	}
 	rep, parsed := ValidateYAML(outBytes, cat)
 	return AutoFixResult{FixedYAML: string(outBytes), Config: parsed, AppliedFixes: fixes, EngineUsed: "mini-engine", Report: rep}, nil
@@ -58,20 +64,24 @@ func AutoFixMiniEngine(raw []byte, cat *CatalogSnapshot, opts AutoFixOptions) (A
 // AutoFixWithJudgeLLM uses the Judge LLM to repair broken YAML structure and then runs MiniEngine validation.
 func AutoFixWithJudgeLLM(ctx context.Context, judge domain.Provider, raw []byte, cat *CatalogSnapshot, opts AutoFixOptions) (AutoFixResult, error) {
 	if judge == nil {
-		return AutoFixResult{}, fmt.Errorf("judge LLM provider is not available for AI auto-fix")
+		return AutoFixResult{}, errors.New("judge llm provider is not available for ai auto-fix")
 	}
 	prompt := buildJudgeYAMLRepairPrompt(string(raw))
 	resp, err := judge.Call(ctx, domain.PromptRequest{Prompt: prompt})
 	if err != nil {
-		return AutoFixResult{}, fmt.Errorf("judge LLM auto-fix call failed: %w", err)
+		return AutoFixResult{}, fmt.Errorf("judge llm auto-fix call failed: %w", err)
 	}
-	extracted := extractYAMLBlock(resp.Output)
+	return runPostJudgeMiniEngine(judge.ID(), resp.Output, cat, opts)
+}
+
+func runPostJudgeMiniEngine(judgeID, output string, cat *CatalogSnapshot, opts AutoFixOptions) (AutoFixResult, error) {
+	extracted := extractYAMLBlock(output)
 	res, err := AutoFixMiniEngine([]byte(extracted), cat, opts)
 	if err != nil {
-		return AutoFixResult{}, err
+		return AutoFixResult{}, fmt.Errorf("post-judge mini-engine repair: %w", err)
 	}
-	res.EngineUsed = "judge-llm (" + judge.ID() + ") + mini-engine"
-	res.AppliedFixes = append([]string{"Repaired YAML structure via Judge LLM (" + judge.ID() + ")"}, res.AppliedFixes...)
+	res.EngineUsed = "judge-llm (" + judgeID + ") + mini-engine"
+	res.AppliedFixes = append([]string{"Repaired YAML structure via Judge LLM (" + judgeID + ")"}, res.AppliedFixes...)
 	return res, nil
 }
 
@@ -98,6 +108,10 @@ func sanitizeRawYAMLText(raw string, fixes *[]string) string {
 		raw = strings.ReplaceAll(raw, "\t", "  ")
 		*fixes = append(*fixes, "Replaced tab indentation characters with 2 spaces")
 	}
+	return replaceMisspelledYAMLKeys(raw, fixes)
+}
+
+func replaceMisspelledYAMLKeys(raw string, fixes *[]string) string {
 	padded := "\n" + raw
 	replacements := [][2]string{
 		{"\ntarget:", "\ntargets:"},
@@ -229,12 +243,7 @@ func matchClosestCatalogID(raw string, catalog map[string]bool, prefix string) s
 
 func findSubstringCatalogMatch(clean string, catalog map[string]bool, prefix string) string {
 	short := strings.TrimPrefix(clean, prefix)
-	var keys []string
-	for k := range catalog {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(catalog)) {
 		kShort := strings.TrimPrefix(k, prefix)
 		if strings.ReplaceAll(kShort, ":", "-") == strings.ReplaceAll(short, ":", "-") || strings.Contains(kShort, short) {
 			return k

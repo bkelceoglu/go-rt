@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -17,11 +16,12 @@ func TestAllCatalogCountAndCollectionsFromSQLite(t *testing.T) {
 	}
 	defer db.Close()
 
-	all, err := All(context.Background(), db)
+	ctx := t.Context()
+	all, err := All(ctx, db)
 	if err != nil || len(all) < 150 {
 		t.Fatalf("expected at least 150 SQLite-seeded plugins, got %d (err=%v)", len(all), err)
 	}
-	expanded, err := ExpandSpecs(context.Background(), db, []domain.PluginSpec{
+	expanded, err := ExpandSpecs(ctx, db, []domain.PluginSpec{
 		{ID: "gort:collection:owasp-llm-top-10", NumTests: 5},
 		{ID: "gort:collection:financial", NumTests: 3},
 	}, 5)

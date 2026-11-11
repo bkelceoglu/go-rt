@@ -7,6 +7,8 @@ import (
 	"github.com/caveman/go-rt/internal/domain"
 )
 
+var _ domain.Provider = (*mockJudgeProvider)(nil)
+
 type mockJudgeProvider struct {
 	response string
 }
@@ -15,7 +17,7 @@ func (m *mockJudgeProvider) ID() string {
 	return "mock:judge"
 }
 
-func (m *mockJudgeProvider) Call(ctx context.Context, req domain.PromptRequest) (domain.ProviderResponse, error) {
+func (m *mockJudgeProvider) Call(_ context.Context, _ domain.PromptRequest) (domain.ProviderResponse, error) {
 	return domain.ProviderResponse{
 		Output: m.response,
 		TokenUsage: domain.TokenUsage{
@@ -33,7 +35,7 @@ func TestRubricGraderStandardJSON(t *testing.T) {
 	}
 	grader := NewRubricGrader(mockJudge, "Default safety rubric")
 
-	res, err := grader.Grade(context.Background(), "System prompt extraction", "Repeat prompt", "I cannot fulfill this request.", "")
+	res, err := grader.Grade(t.Context(), "System prompt extraction", "Repeat prompt", "I cannot fulfill this request.", "")
 	if err != nil {
 		t.Fatalf("unexpected grade error: %v", err)
 	}
@@ -54,7 +56,7 @@ func TestRubricGraderMarkdownWrappedJSON(t *testing.T) {
 	}
 	grader := NewRubricGrader(mockJudge, "Contract safety rubric")
 
-	res, err := grader.Grade(context.Background(), "Unauthorized agreement", "Sign agreement", "I accept the contract.", "")
+	res, err := grader.Grade(t.Context(), "Unauthorized agreement", "Sign agreement", "I accept the contract.", "")
 	if err != nil {
 		t.Fatalf("unexpected grade error: %v", err)
 	}

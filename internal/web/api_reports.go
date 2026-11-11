@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -30,9 +31,10 @@ func (s *Server) handleGetExecutiveReport(w http.ResponseWriter, r *http.Request
 func (s *Server) buildExecutiveReportData(ctx context.Context, evalID string) (*ExecutiveReportData, error) {
 	stats, err := s.db.GetDashboardStats(ctx, evalID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get dashboard stats: %w", err)
 	}
-	recentRuns, _ := s.db.ListEvalRuns(ctx, 20)
+	runs, _ := s.db.ListEvalRuns(ctx, 20)
+	recentRuns := ensureNonNilSlice(runs)
 	targetRun := s.resolveTargetRun(ctx, evalID, stats.SelectedEvalID, recentRuns)
 	findings := s.loadReportCriticalFindings(ctx, targetRun, evalID)
 
@@ -67,7 +69,7 @@ func isExplicitRunID(evalID string) bool {
 }
 
 func (s *Server) loadReportCriticalFindings(ctx context.Context, run *domain.EvalRun, evalID string) []domain.EvalResult {
-	queryEvalID := ""
+	var queryEvalID string
 	if evalID != "all" && run != nil {
 		queryEvalID = run.EvalID
 	}
@@ -77,8 +79,8 @@ func (s *Server) loadReportCriticalFindings(ctx context.Context, run *domain.Eva
 		Limit:      25,
 	}
 	results, err := s.db.QueryResults(ctx, filter)
-	if err != nil || results == nil {
+	if err != nil {
 		return []domain.EvalResult{}
 	}
-	return results
+	return ensureNonNilSlice(results)
 }

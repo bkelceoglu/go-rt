@@ -8,6 +8,8 @@ import (
 	"github.com/caveman/go-rt/internal/domain"
 )
 
+var _ domain.Provider = (*scriptedProvider)(nil)
+
 type scriptedProvider struct {
 	id        string
 	responses []string
@@ -51,7 +53,7 @@ func TestCrescendoBacktrackingAndUnblocking(t *testing.T) {
 	}
 
 	dec := NewCrescendoDecorator(target, attacker, StrategyCrescendo, 3, 2)
-	resp, err := dec.Call(context.Background(), domain.PromptRequest{Prompt: "Verify diagnostic access"})
+	resp, err := dec.Call(t.Context(), domain.PromptRequest{Prompt: "Verify diagnostic access"})
 	if err != nil {
 		t.Fatalf("CrescendoDecorator.Call error: %v", err)
 	}
@@ -61,7 +63,7 @@ func TestCrescendoBacktrackingAndUnblocking(t *testing.T) {
 	if len(resp.ConversationHistory) != 4 {
 		t.Fatalf("expected 4 audit turns (Turn 1 + Unblock + Rolled-back Turn 2 + Turn 3), got %d", len(resp.ConversationHistory))
 	}
-	backtrackCount := 0
+	var backtrackCount int
 	for _, turn := range resp.ConversationHistory {
 		if turn.Backtrack {
 			backtrackCount++

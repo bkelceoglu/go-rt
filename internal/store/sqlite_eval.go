@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/caveman/go-rt/internal/domain"
 	"gorm.io/gorm"
@@ -12,7 +14,6 @@ import (
 // SaveEvalRun inserts or updates an assessment session run in SQLite via GORM.
 func (s *SQLiteStore) SaveEvalRun(ctx context.Context, run domain.EvalRun) error {
 	model := toEvalRunModel(run)
-	// i still love this gorm CRUD ops. lovely.
 	err := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{UpdateAll: true}).
 		Create(&model).Error
@@ -106,22 +107,26 @@ func (s *SQLiteStore) GetSpansByTrace(ctx context.Context, traceID string) ([]do
 	}
 	out := make([]domain.OTelSpanRecord, 0, len(models))
 	for _, m := range models {
-		out = append(out, domain.OTelSpanRecord{
-			SpanID:            m.SpanID,
-			TraceID:           m.TraceID,
-			ParentSpanID:      m.ParentSpanID,
-			EvalID:            m.EvalID,
-			ResultID:          m.ResultID,
-			Name:              m.Name,
-			Kind:              m.Kind,
-			StartTimeUnixNano: m.StartTimeUnixNano,
-			EndTimeUnixNano:   m.EndTimeUnixNano,
-			StatusCode:        m.StatusCode,
-			Attributes:        m.Attributes,
-			Events:            m.Events,
-		})
+		out = append(out, toOTelSpanRecord(m))
 	}
 	return out, nil
+}
+
+func toOTelSpanRecord(m OTelSpanModel) domain.OTelSpanRecord {
+	return domain.OTelSpanRecord{
+		SpanID:            m.SpanID,
+		TraceID:           m.TraceID,
+		ParentSpanID:      m.ParentSpanID,
+		EvalID:            m.EvalID,
+		ResultID:          m.ResultID,
+		Name:              m.Name,
+		Kind:              m.Kind,
+		StartTimeUnixNano: m.StartTimeUnixNano,
+		EndTimeUnixNano:   m.EndTimeUnixNano,
+		StatusCode:        m.StatusCode,
+		Attributes:        maps.Clone(m.Attributes),
+		Events:            slices.Clone(m.Events),
+	}
 }
 
 // GetDashboardStats aggregates executive posture KPIs across all or specific stored assessments.
@@ -174,13 +179,17 @@ func computeRunTotals(runs []domain.EvalRun) *domain.DashboardStats {
 		stats.TotalTokens += int64(r.TotalTokens)
 		totalDuration += r.DurationMs
 	}
+	finalizeRunAverages(stats, len(runs), totalDuration)
+	return stats
+}
+
+func finalizeRunAverages(stats *domain.DashboardStats, runCount int, totalDuration int64) {
 	if stats.TotalTests > 0 {
 		stats.PassRate = float64(stats.PassedTests) / float64(stats.TotalTests) * 100.0
 	}
-	if len(runs) > 0 {
-		stats.AvgDurationMs = totalDuration / int64(len(runs))
+	if runCount > 0 {
+		stats.AvgDurationMs = totalDuration / int64(runCount)
 	}
-	return stats
 }
 
 type strategyRow struct {
@@ -212,10 +221,15 @@ func (s *SQLiteStore) queryStrategyBreakdown(ctx context.Context, stats *domain.
 		tx = tx.Where("eval_id = ?", targetEvalID)
 	}
 	if err := tx.Group("strategy_id").Scan(&stratRows).Error; err != nil {
-		return err
+		return fmt.Errorf("query strategy breakdown: %w", err)
 	}
-	for _, sr := range stratRows {
-		bypassRate := 0.0
+	populateStrategyStats(stats, stratRows)
+	return nil
+}
+
+func populateStrategyStats(stats *domain.DashboardStats, rows []strategyRow) {
+	for _, sr := range rows {
+		var bypassRate float64
 		if sr.Total > 0 {
 			bypassRate = float64(sr.Failed) / float64(sr.Total) * 100.0
 		}
@@ -226,7 +240,6 @@ func (s *SQLiteStore) queryStrategyBreakdown(ctx context.Context, stats *domain.
 			BypassRate: bypassRate,
 		}
 	}
-	return nil
 }
 
 func (s *SQLiteStore) querySeverityBreakdown(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
@@ -238,7 +251,7 @@ func (s *SQLiteStore) querySeverityBreakdown(ctx context.Context, stats *domain.
 		tx = tx.Where("eval_id = ?", targetEvalID)
 	}
 	if err := tx.Group("severity").Scan(&sevRows).Error; err != nil {
-		return err
+		return fmt.Errorf("query severity breakdown: %w", err)
 	}
 	for _, svr := range sevRows {
 		stats.SeverityStats[svr.Severity] = svr.Count
@@ -247,7 +260,7 @@ func (s *SQLiteStore) querySeverityBreakdown(ctx context.Context, stats *domain.
 }
 
 func (s *SQLiteStore) queryTopFailingPlugins(ctx context.Context, stats *domain.DashboardStats, targetEvalID string) error {
-	var topPlugins []domain.PluginFailureStat
+	topPlugins := []domain.PluginFailureStat{}
 	tx := s.db.WithContext(ctx).Model(&EvalResultModel{}).
 		Select("category, plugin_id, count(*) as failures").
 		Where("pass = ?", false)
@@ -255,7 +268,7 @@ func (s *SQLiteStore) queryTopFailingPlugins(ctx context.Context, stats *domain.
 		tx = tx.Where("eval_id = ?", targetEvalID)
 	}
 	if err := tx.Group("category, plugin_id").Order("failures DESC").Limit(10).Scan(&topPlugins).Error; err != nil {
-		return err
+		return fmt.Errorf("query top failing plugins: %w", err)
 	}
 	stats.TopFailingPlugins = topPlugins
 	return nil
@@ -283,7 +296,7 @@ func toEvalRunModel(run domain.EvalRun) EvalRunModel {
 		TraceID:         run.TraceID,
 		Description:     run.Description,
 		Purpose:         run.Purpose,
-		TargetProviders: run.TargetProviders,
+		TargetProviders: slices.Clone(run.TargetProviders),
 		JudgeProvider:   run.JudgeProvider,
 		TotalTests:      run.TotalTests,
 		PassedTests:     run.PassedTests,
@@ -297,88 +310,106 @@ func toEvalRunModel(run domain.EvalRun) EvalRunModel {
 func mapModelsToEvalRuns(models []EvalRunModel) []domain.EvalRun {
 	out := make([]domain.EvalRun, 0, len(models))
 	for _, m := range models {
-		out = append(out, domain.EvalRun{
-			EvalID:          m.EvalID,
-			TraceID:         m.TraceID,
-			Description:     m.Description,
-			Purpose:         m.Purpose,
-			TargetProviders: m.TargetProviders,
-			JudgeProvider:   m.JudgeProvider,
-			TotalTests:      m.TotalTests,
-			PassedTests:     m.PassedTests,
-			FailedTests:     m.FailedTests,
-			TotalTokens:     m.TotalTokens,
-			DurationMs:      m.DurationMs,
-			CreatedAt:       m.CreatedAt,
-		})
+		out = append(out, toSingleEvalRun(m))
 	}
 	return out
 }
 
-func toEvalResultModel(res domain.EvalResult) EvalResultModel {
-	return EvalResultModel{
-		ResultID:            res.ResultID,
-		EvalID:              res.EvalID,
-		TraceID:             res.TraceID,
-		SpanID:              res.SpanID,
-		PluginID:            res.PluginID,
-		Category:            res.Category,
-		AttackType:          res.AttackType,
-		Source:              res.Source,
-		StrategyID:          res.StrategyID,
-		Severity:            res.Severity,
-		InjectVar:           res.InjectVar,
-		RawPrompt:           res.RawPrompt,
-		RenderedPrompt:      res.RenderedPrompt,
-		TargetOutput:        res.TargetOutput,
-		Pass:                res.Pass,
-		Score:               res.Score,
-		FailureReason:       res.FailureReason,
-		JudgeReason:         res.JudgeReason,
-		JudgeRubric:         res.JudgeRubric,
-		LatencyMs:           res.LatencyMs,
-		TokensPrompt:        res.TokenUsage.Prompt,
-		TokensCompletion:    res.TokenUsage.Completion,
-		TokensTotal:         res.TokenUsage.Total,
-		Cached:              res.Cached,
-		ConversationHistory: res.ConversationHistory,
-		OTelAttributes:      res.OTelAttributes,
-		CreatedAt:           res.CreatedAt.UTC(),
+func toSingleEvalRun(m EvalRunModel) domain.EvalRun {
+	return domain.EvalRun{
+		EvalID:          m.EvalID,
+		TraceID:         m.TraceID,
+		Description:     m.Description,
+		Purpose:         m.Purpose,
+		TargetProviders: slices.Clone(m.TargetProviders),
+		JudgeProvider:   m.JudgeProvider,
+		TotalTests:      m.TotalTests,
+		PassedTests:     m.PassedTests,
+		FailedTests:     m.FailedTests,
+		TotalTokens:     m.TotalTokens,
+		DurationMs:      m.DurationMs,
+		CreatedAt:       m.CreatedAt,
 	}
+}
+
+func toEvalResultModel(res domain.EvalResult) EvalResultModel {
+	model := EvalResultModel{
+		ResultID:       res.ResultID,
+		EvalID:         res.EvalID,
+		TraceID:        res.TraceID,
+		SpanID:         res.SpanID,
+		PluginID:       res.PluginID,
+		Category:       res.Category,
+		AttackType:     res.AttackType,
+		Source:         res.Source,
+		StrategyID:     res.StrategyID,
+		Severity:       res.Severity,
+		InjectVar:      res.InjectVar,
+		RawPrompt:      res.RawPrompt,
+		RenderedPrompt: res.RenderedPrompt,
+	}
+	populateEvalResultModelOutcome(&model, res)
+	return model
+}
+
+func populateEvalResultModelOutcome(m *EvalResultModel, res domain.EvalResult) {
+	m.TargetOutput = res.TargetOutput
+	m.Pass = res.Pass
+	m.Score = res.Score
+	m.FailureReason = res.FailureReason
+	m.JudgeReason = res.JudgeReason
+	m.JudgeRubric = res.JudgeRubric
+	m.LatencyMs = res.LatencyMs
+	m.TokensPrompt = res.TokenUsage.Prompt
+	m.TokensCompletion = res.TokenUsage.Completion
+	m.TokensTotal = res.TokenUsage.Total
+	m.Cached = res.Cached
+	m.ConversationHistory = slices.Clone(res.ConversationHistory)
+	m.OTelAttributes = maps.Clone(res.OTelAttributes)
+	m.CreatedAt = res.CreatedAt.UTC()
 }
 
 func mapModelsToEvalResults(models []EvalResultModel) []domain.EvalResult {
 	out := make([]domain.EvalResult, 0, len(models))
 	for _, m := range models {
-		out = append(out, domain.EvalResult{
-			ResultID:            m.ResultID,
-			EvalID:              m.EvalID,
-			TraceID:             m.TraceID,
-			SpanID:              m.SpanID,
-			PluginID:            m.PluginID,
-			Category:            m.Category,
-			AttackType:          m.AttackType,
-			Source:              m.Source,
-			StrategyID:          m.StrategyID,
-			Severity:            m.Severity,
-			InjectVar:           m.InjectVar,
-			RawPrompt:           m.RawPrompt,
-			RenderedPrompt:      m.RenderedPrompt,
-			TargetOutput:        m.TargetOutput,
-			Pass:                m.Pass,
-			Score:               m.Score,
-			FailureReason:       m.FailureReason,
-			JudgeReason:         m.JudgeReason,
-			JudgeRubric:         m.JudgeRubric,
-			LatencyMs:           m.LatencyMs,
-			TokenUsage:          domain.TokenUsage{Prompt: m.TokensPrompt, Completion: m.TokensCompletion, Total: m.TokensTotal},
-			Cached:              m.Cached,
-			ConversationHistory: m.ConversationHistory,
-			OTelAttributes:      m.OTelAttributes,
-			CreatedAt:           m.CreatedAt,
-		})
+		out = append(out, toSingleEvalResult(m))
 	}
 	return out
+}
+
+func toSingleEvalResult(m EvalResultModel) domain.EvalResult {
+	res := domain.EvalResult{
+		ResultID:       m.ResultID,
+		EvalID:         m.EvalID,
+		TraceID:        m.TraceID,
+		SpanID:         m.SpanID,
+		PluginID:       m.PluginID,
+		Category:       m.Category,
+		AttackType:     m.AttackType,
+		Source:         m.Source,
+		StrategyID:     m.StrategyID,
+		Severity:       m.Severity,
+		InjectVar:      m.InjectVar,
+		RawPrompt:      m.RawPrompt,
+		RenderedPrompt: m.RenderedPrompt,
+	}
+	populateEvalResultFromModel(&res, m)
+	return res
+}
+
+func populateEvalResultFromModel(res *domain.EvalResult, m EvalResultModel) {
+	res.TargetOutput = m.TargetOutput
+	res.Pass = m.Pass
+	res.Score = m.Score
+	res.FailureReason = m.FailureReason
+	res.JudgeReason = m.JudgeReason
+	res.JudgeRubric = m.JudgeRubric
+	res.LatencyMs = m.LatencyMs
+	res.TokenUsage = domain.TokenUsage{Prompt: m.TokensPrompt, Completion: m.TokensCompletion, Total: m.TokensTotal}
+	res.Cached = m.Cached
+	res.ConversationHistory = slices.Clone(m.ConversationHistory)
+	res.OTelAttributes = maps.Clone(m.OTelAttributes)
+	res.CreatedAt = m.CreatedAt
 }
 
 func toOTelSpanModel(span domain.OTelSpanRecord) OTelSpanModel {
@@ -393,7 +424,7 @@ func toOTelSpanModel(span domain.OTelSpanRecord) OTelSpanModel {
 		StartTimeUnixNano: span.StartTimeUnixNano,
 		EndTimeUnixNano:   span.EndTimeUnixNano,
 		StatusCode:        span.StatusCode,
-		Attributes:        span.Attributes,
-		Events:            span.Events,
+		Attributes:        maps.Clone(span.Attributes),
+		Events:            slices.Clone(span.Events),
 	}
 }

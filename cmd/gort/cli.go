@@ -74,26 +74,77 @@ func processSubcommandArg(a string, st *subcommandState) bool {
 	return false
 }
 
+var earlyCommandMap = map[string]cliCommandKind{
+	"help":            cmdHelp,
+	"--help":          cmdHelp,
+	"-h":              cmdHelp,
+	"version":         cmdVersion,
+	"--version":       cmdVersion,
+	"pull":            cmdPullDatasets,
+	"sync":            cmdPullDatasets,
+	"--pull-datasets": cmdPullDatasets,
+	"--pull":          cmdPullDatasets,
+}
+
 func matchEarlyCommand(lower string, st *subcommandState) bool {
-	switch lower {
-	case "help", "--help", "-h":
-		st.kind = cmdHelp
+	if kind, ok := earlyCommandMap[lower]; ok {
+		st.kind = kind
 		st.earlyEnd = true
 		return true
-	case "version", "--version":
-		st.kind = cmdVersion
-		st.earlyEnd = true
-		return true
-	case "pull", "sync", "--pull-datasets", "--pull":
-		st.kind = cmdPullDatasets
-		st.earlyEnd = true
-		return true
-	default:
-		return false
 	}
+	return false
+}
+
+var subcommandKindMap = map[string]cliCommandKind{
+	"results":           cmdListResults,
+	"result":            cmdListResults,
+	"runs":              cmdListResults,
+	"history":           cmdListResults,
+	"--results":         cmdListResults,
+	"validate":          cmdValidate,
+	"check":             cmdValidate,
+	"--validate":        cmdValidate,
+	"view":              cmdWebUI,
+	"ui":                cmdWebUI,
+	"web":               cmdWebUI,
+	"wizard":            cmdWebUI,
+	"--view":            cmdWebUI,
+	"--ui":              cmdWebUI,
+	"plugins":           cmdListPlugins,
+	"plugin":            cmdListPlugins,
+	"--list-plugins":    cmdListPlugins,
+	"--plugins":         cmdListPlugins,
+	"-p":                cmdListPlugins,
+	"strategies":        cmdListStrategies,
+	"strategy":          cmdListStrategies,
+	"--list-strategies": cmdListStrategies,
+	"--strategies":      cmdListStrategies,
+	"-s":                cmdListStrategies,
+}
+
+var datasetAliasSet = map[string]bool{
+	"ls": true, "list": true, "datasets": true, "dataset": true,
+	"--list-datasets": true, "--datasets": true, "-l": true,
 }
 
 func matchSubcommandKind(lower string, st *subcommandState) bool {
+	if matchSubcommandFlag(lower, st) {
+		return true
+	}
+	if kind, ok := subcommandKindMap[lower]; ok {
+		st.kind = kind
+		return true
+	}
+	if datasetAliasSet[lower] {
+		if st.kind == "" {
+			st.kind = cmdListDatasets
+		}
+		return true
+	}
+	return false
+}
+
+func matchSubcommandFlag(lower string, st *subcommandState) bool {
 	switch lower {
 	case "--verbose", "-v":
 		st.verbose = true
@@ -101,54 +152,35 @@ func matchSubcommandKind(lower string, st *subcommandState) bool {
 	case "--ai", "-a":
 		st.aiGen = true
 		return true
-	case "results", "result", "runs", "history", "--results":
-		st.kind = cmdListResults
-		return true
-	case "validate", "check", "--validate":
-		st.kind = cmdValidate
-		return true
-	case "view", "ui", "web", "wizard", "--view", "--ui":
-		st.kind = cmdWebUI
-		return true
-	case "plugins", "plugin", "--list-plugins", "--plugins", "-p":
-		st.kind = cmdListPlugins
-		return true
-	case "strategies", "strategy", "--list-strategies", "--strategies", "-s":
-		st.kind = cmdListStrategies
-		return true
-	case "ls", "list", "datasets", "dataset", "--list-datasets", "--datasets", "-l":
-		if st.kind == "" {
-			st.kind = cmdListDatasets
-		}
-		return true
 	default:
 		return false
 	}
 }
 
 func parseRunArgs(args []string) parsedCLI {
-	res := parsedCLI{Kind: cmdRun, ConfigPath: "config.yaml"}
+	res := parsedCLI{Kind: cmdRun, ConfigPath: "config.yaml", DatasetArgs: []string{}}
 	for i := 0; i < len(args); i++ {
 		arg := strings.TrimSpace(args[i])
-		lower := strings.ToLower(arg)
-		if lower == "--verbose" || lower == "-v" {
-			res.Verbose = true
-			continue
-		}
 		if (arg == "-c" || arg == "--config") && i+1 < len(args) {
 			res.ConfigPath = args[i+1]
 			i++
 			continue
 		}
-		if isYAMLPath(arg) {
-			res.ConfigPath = arg
-			continue
-		}
-		if arg != "run" {
-			res.DatasetArgs = append(res.DatasetArgs, arg)
-		}
+		applySingleRunArg(arg, &res)
 	}
 	return res
+}
+
+func applySingleRunArg(arg string, res *parsedCLI) {
+	lower := strings.ToLower(arg)
+	switch {
+	case lower == "--verbose" || lower == "-v":
+		res.Verbose = true
+	case isYAMLPath(arg):
+		res.ConfigPath = arg
+	case arg != "run":
+		res.DatasetArgs = append(res.DatasetArgs, arg)
+	}
 }
 
 func isYAMLPath(arg string) bool {
