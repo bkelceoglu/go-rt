@@ -36,9 +36,25 @@ func TestPadRightVisible(t *testing.T) {
 }
 
 func TestBadgeFormatting(t *testing.T) {
+	prev := IsColorEnabled()
 	SetColorEnabled(false)
-	badge := Badge("CRITICAL")
-	if badge != "[CRITICAL]" {
-		t.Errorf("expected [CRITICAL], got %q", badge)
+	defer SetColorEnabled(prev)
+
+	cases := []struct {
+		name     string
+		label    string
+		expected string
+	}{
+		{name: "critical severity", label: "CRITICAL", expected: "[CRITICAL]"},
+		{name: "pass status", label: "PASS", expected: " PASS "},
+		{name: "custom label", label: "INFO", expected: "[INFO]"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Badge(tc.label); got != tc.expected {
+				t.Errorf("Badge(%q) = %q, want %q", tc.label, got, tc.expected)
+			}
+		})
 	}
 }

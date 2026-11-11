@@ -8,6 +8,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
+var _ domain.Provider = (*RateLimitedProvider)(nil)
+
 // RateLimitedProvider wraps any domain.Provider with token-bucket rate limiting and concurrency throttling.
 type RateLimitedProvider struct {
 	underlying domain.Provider
@@ -19,10 +21,7 @@ type RateLimitedProvider struct {
 func NewRateLimitedProvider(underlying domain.Provider, rps float64, burst int, maxConcurrent int) *RateLimitedProvider {
 	var lim *rate.Limiter
 	if rps > 0 {
-		if burst < 1 {
-			burst = 1
-		}
-		lim = rate.NewLimiter(rate.Limit(rps), burst)
+		lim = rate.NewLimiter(rate.Limit(rps), max(burst, 1))
 	}
 	var sem chan struct{}
 	if maxConcurrent > 0 {

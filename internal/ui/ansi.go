@@ -5,12 +5,24 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
 var (
-	ansiEscapeRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	colorEnabled    = detectColorSupport()
+	ansiEscapeRegex  = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	hasColorOverride atomic.Bool
+	isColorEnabled   atomic.Bool
+	defaultColorOnce = sync.OnceValue(detectColorSupport)
+	badgeFormatters  = map[string]func(string) string{
+		"CRITICAL": func(_ string) string { return BoldRed("[CRITICAL]") },
+		"HIGH":     func(_ string) string { return Red("[HIGH]") },
+		"MEDIUM":   func(_ string) string { return Yellow("[MEDIUM]") },
+		"LOW":      func(_ string) string { return Cyan("[LOW]") },
+		"PASS":     func(_ string) string { return BoldGreen(" PASS ") },
+		"FAIL":     func(_ string) string { return BoldRed(" FAIL ") },
+	}
 )
 
 func detectColorSupport() bool {
@@ -26,12 +38,21 @@ func detectColorSupport() bool {
 
 // SetColorEnabled manually overrides automatic color detection.
 func SetColorEnabled(enabled bool) {
-	colorEnabled = enabled
+	isColorEnabled.Store(enabled)
+	hasColorOverride.Store(true)
+}
+
+// IsColorEnabled reports whether ANSI color output is currently active.
+func IsColorEnabled() bool {
+	if hasColorOverride.Load() {
+		return isColorEnabled.Load()
+	}
+	return defaultColorOnce()
 }
 
 // Colorize wraps text with ANSI escape codes if color is enabled.
 func Colorize(code, text string) string {
-	if !colorEnabled || text == "" {
+	if !IsColorEnabled() || text == "" {
 		return text
 	}
 	return fmt.Sprintf("\x1b[%sm%s\x1b[0m", code, text)
@@ -56,22 +77,10 @@ func BoldCyan(text string) string   { return Colorize("1;36", text) }
 
 // Badge returns a stylized severity or status badge.
 func Badge(label string) string {
-	switch strings.ToUpper(label) {
-	case "CRITICAL":
-		return BoldRed("[CRITICAL]")
-	case "HIGH":
-		return Red("[HIGH]")
-	case "MEDIUM":
-		return Yellow("[MEDIUM]")
-	case "LOW":
-		return Cyan("[LOW]")
-	case "PASS":
-		return BoldGreen(" PASS ")
-	case "FAIL":
-		return BoldRed(" FAIL ")
-	default:
-		return Gray("[" + label + "]")
+	if fn, ok := badgeFormatters[strings.ToUpper(label)]; ok {
+		return fn(label)
 	}
+	return Gray("[" + label + "]")
 }
 
 // StripANSI removes all ANSI escape sequences from a string.
