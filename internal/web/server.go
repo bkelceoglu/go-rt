@@ -1,10 +1,11 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"embed"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io/fs"
 	"net/http"
 	"time"
@@ -25,9 +26,7 @@ type Server struct {
 
 // NewServer initializes the modular web dashboard server and registers routes.
 func NewServer(db *store.SQLiteStore, workDir string) *Server {
-	if workDir == "" {
-		workDir = "."
-	}
+	workDir = cmp.Or(workDir, ".")
 	s := &Server{
 		db:      db,
 		workDir: workDir,
@@ -52,7 +51,7 @@ func (s *Server) Start(ctx context.Context, addr string) error {
 	}
 	errCh := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
 		close(errCh)
@@ -72,12 +71,21 @@ func waitForServerShutdown(ctx context.Context, srv *http.Server, errCh <-chan e
 }
 
 func (s *Server) registerRoutes() {
+	s.registerRunRoutes()
+	s.registerCatalogAndConfigRoutes()
+	s.registerAssessmentAndReportRoutes()
+	s.registerStaticSubtree()
+}
+
+func (s *Server) registerRunRoutes() {
 	s.mux.HandleFunc("GET /api/dashboard/stats", s.handleGetDashboardStats)
 	s.mux.HandleFunc("GET /api/runs", s.handleListRuns)
 	s.mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	s.mux.HandleFunc("GET /api/runs/{id}/results", s.handleGetRunResults)
 	s.mux.HandleFunc("GET /api/runs/{id}/results/{resultId}", s.handleGetResultDetail)
+}
 
+func (s *Server) registerCatalogAndConfigRoutes() {
 	s.mux.HandleFunc("GET /api/catalog", s.handleGetCatalog)
 	s.mux.HandleFunc("GET /api/datasets/{name}/prompts", s.handleGetDatasetPrompts)
 	s.mux.HandleFunc("GET /api/configs", s.handleListConfigs)
@@ -87,15 +95,15 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/configs/ping-providers", s.handlePingProviders)
 	s.mux.HandleFunc("POST /api/configs/autofix", s.handleAutoFixConfig)
 	s.mux.HandleFunc("POST /api/datasets/custom", s.handleSaveCustomDataset)
+}
 
+func (s *Server) registerAssessmentAndReportRoutes() {
 	s.mux.HandleFunc("POST /api/assessments/start", s.handleStartAssessment)
 	s.mux.HandleFunc("POST /api/assessments/stop", s.handleStopAssessment)
 	s.mux.HandleFunc("GET /api/assessments/status", s.handleGetAssessmentStatus)
 	s.mux.HandleFunc("GET /api/logs/tail", s.handleGetLogsTail)
 	s.mux.HandleFunc("GET /api/logs/stream", s.handleStreamLogs)
 	s.mux.HandleFunc("GET /api/reports/executive", s.handleGetExecutiveReport)
-
-	s.registerStaticSubtree()
 }
 
 func (s *Server) registerStaticSubtree() {
@@ -113,5 +121,5 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": fmt.Sprintf("%s", msg)})
+	writeJSON(w, status, map[string]string{"error": msg})
 }

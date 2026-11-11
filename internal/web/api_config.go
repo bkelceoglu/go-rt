@@ -15,11 +15,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func (s *Server) handleListConfigs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListConfigs(w http.ResponseWriter, _ *http.Request) {
 	files := listWorkspaceYAMLFiles(s.workDir)
-	if files == nil {
-		files = []string{}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{"files": files})
 }
 
@@ -28,36 +25,36 @@ func listWorkspaceYAMLFiles(dir string) []string {
 	if err != nil {
 		return []string{}
 	}
-	var out []string
+	out := []string{}
 	for _, e := range entries {
-		if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		lower := strings.ToLower(e.Name())
-		if strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml") {
+		if isVisibleYAMLFile(e) {
 			out = append(out, e.Name())
 		}
 	}
 	slices.Sort(out)
-	if out == nil {
-		out = []string{}
-	}
 	return out
+}
+
+func isVisibleYAMLFile(e os.DirEntry) bool {
+	if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+		return false
+	}
+	lower := strings.ToLower(e.Name())
+	return strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml")
 }
 
 func (s *Server) handleLoadConfig(w http.ResponseWriter, r *http.Request) {
 	file := sanitizeConfigFilename(r.URL.Query().Get("file"))
-	fullPath := filepath.Join(s.workDir, file)
-	raw, err := os.ReadFile(fullPath)
+	raw, err := readWorkspaceFile(s.workDir, file)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "config file not found: "+file)
 		return
 	}
 	cat := plugin.BuildCatalogSnapshot(r.Context(), s.db)
-	rep, cfg := config.ValidateYAML(raw, cat)
+	rep, _ := config.ValidateYAML(raw, cat)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"filename": file,
-		"config":   cfg,
+		"config":   parseUnexpandedConfig(raw),
 		"rawYaml":  string(raw),
 		"report":   rep,
 	})
@@ -81,8 +78,16 @@ func (s *Server) handleValidateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"report": rep,
-		"config": cfg,
+		"config": parseUnexpandedConfig([]byte(req.RawYAML)),
 	})
+}
+
+func parseUnexpandedConfig(raw []byte) domain.Config {
+	var cfg domain.Config
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return domain.Config{}
+	}
+	return cfg
 }
 
 type pingProvidersRequest struct {
@@ -159,12 +164,29 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	fullPath := filepath.Join(s.workDir, file)
-	if err := os.WriteFile(fullPath, rawBytes, 0o644); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	if err := writeWorkspaceFile(s.workDir, file, rawBytes); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save config file")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"saved": file, "bytes": len(rawBytes)})
+}
+
+func readWorkspaceFile(workDir, name string) ([]byte, error) {
+	root, err := os.OpenRoot(workDir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	return root.ReadFile(name)
+}
+
+func writeWorkspaceFile(workDir, name string, data []byte) error {
+	root, err := os.OpenRoot(workDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	return root.WriteFile(name, data, 0o644)
 }
 
 func validateAndNormalizeYAML(raw string) ([]byte, error) {
@@ -180,7 +202,8 @@ func validateAndNormalizeYAML(raw string) ([]byte, error) {
 
 func sanitizeConfigFilename(raw string) string {
 	clean := filepath.Base(strings.TrimSpace(raw))
-	if clean == "" || clean == "." || clean == "/" {
+	isInvalidBase := clean == "" || clean == "."
+	if isInvalidBase || clean == ".." || clean == "/" {
 		return "config.yaml"
 	}
 	lower := strings.ToLower(clean)

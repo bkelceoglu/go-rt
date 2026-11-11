@@ -25,10 +25,7 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list eval runs: "+err.Error())
 		return
 	}
-	if runs == nil {
-		runs = []domain.EvalRun{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": ensureNonNilSlice(runs)})
 }
 
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
@@ -53,10 +50,7 @@ func (s *Server) handleGetRunResults(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to query results: "+err.Error())
 		return
 	}
-	if results == nil {
-		results = []domain.EvalResult{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"evalId": evalID, "results": results})
+	writeJSON(w, http.StatusOK, map[string]any{"evalId": evalID, "results": ensureNonNilSlice(results)})
 }
 
 func (s *Server) handleGetResultDetail(w http.ResponseWriter, r *http.Request) {
@@ -67,12 +61,9 @@ func (s *Server) handleGetResultDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	spans, _ := s.db.GetSpansByTrace(r.Context(), result.TraceID)
-	if spans == nil {
-		spans = []domain.OTelSpanRecord{}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"result": result,
-		"spans":  spans,
+		"spans":  ensureNonNilSlice(spans),
 	})
 }
 

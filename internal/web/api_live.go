@@ -2,8 +2,10 @@ package web
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +23,7 @@ type startAssessmentRequest struct {
 	ConfigFile      string `json:"configFile"`
 	Dataset         string `json:"dataset"`
 	RawYAML         string `json:"rawYaml"`
-	SkipHealthCheck bool   `json:"skipHealthCheck,omitempty"`
+	SkipHealthCheck bool   `json:"skipHealthCheck,omitzero"`
 }
 
 func (s *Server) handleStartAssessment(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +70,7 @@ func validateTargetEndpoints(ctx context.Context, cfg *domain.Config, skip bool)
 
 func decodeStartAssessmentRequest(r *http.Request) (startAssessmentRequest, error) {
 	var req startAssessmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 		return req, fmt.Errorf("invalid request json: %w", err)
 	}
 	return req, nil
@@ -105,11 +107,8 @@ func (s *Server) resolveAssessmentConfig(req startAssessmentRequest) (*domain.Co
 }
 
 func (s *Server) loadConfigFromFile(filename string) (*domain.Config, error) {
-	if filename == "" {
-		filename = "config.yaml"
-	}
-	path := filepath.Join(s.workDir, sanitizeConfigFilename(filename))
-	raw, err := os.ReadFile(path)
+	filename = cmp.Or(filename, "config.yaml")
+	raw, err := readWorkspaceFile(s.workDir, sanitizeConfigFilename(filename))
 	if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", filename, err)
 	}
@@ -147,18 +146,26 @@ func prepareSSEHeaders(w http.ResponseWriter) {
 }
 
 func (s *Server) streamLogLoop(ctx context.Context, w io.Writer, flusher http.Flusher, logPath string) {
-	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
-	f, err := os.OpenFile(logPath, os.O_RDONLY|os.O_CREATE, 0o644)
+	f, err := openOrCreateLogFile(logPath)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
 	sendInitialLogLines(w, flusher, f)
-	reader := bufio.NewReader(f)
+	pumpLogLinesUntilDone(ctx, w, flusher, bufio.NewReader(f))
+}
+
+func openOrCreateLogFile(logPath string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(logPath, os.O_RDONLY|os.O_CREATE, 0o644)
+}
+
+func pumpLogLinesUntilDone(ctx context.Context, w io.Writer, flusher http.Flusher, reader *bufio.Reader) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -178,21 +185,28 @@ func sendInitialLogLines(w io.Writer, flusher http.Flusher, f *os.File) {
 }
 
 func readAndFlushNewLines(w io.Writer, flusher http.Flusher, reader *bufio.Reader) {
-	flushed := false
+	var hasFlushed bool
 	for {
 		line, err := reader.ReadString('\n')
-		if len(line) > 0 {
-			clean := strings.TrimRight(line, "\r\n")
-			fmt.Fprintf(w, "data: %s\n\n", clean)
-			flushed = true
+		if writeSSELogLine(w, line) {
+			hasFlushed = true
 		}
 		if err != nil {
 			break
 		}
 	}
-	if flushed {
+	if hasFlushed {
 		flusher.Flush()
 	}
+}
+
+func writeSSELogLine(w io.Writer, line string) bool {
+	if len(line) == 0 {
+		return false
+	}
+	clean := strings.TrimRight(line, "\r\n")
+	fmt.Fprintf(w, "data: %s\n\n", clean)
+	return true
 }
 
 func readLastLines(path string, count int) ([]string, error) {
@@ -205,7 +219,7 @@ func readLastLines(path string, count int) ([]string, error) {
 }
 
 func readLastLinesFromFile(f *os.File, count int) ([]string, error) {
-	var lines []string
+	lines := []string{}
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())

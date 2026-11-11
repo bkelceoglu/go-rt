@@ -150,7 +150,7 @@ func verifyCustomDatasetSaveAndLoad(t *testing.T, baseURL string) {
 	defer getResp.Body.Close()
 }
 
-func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, s *store.SQLiteStore) {
+func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, db *store.SQLiteStore) {
 	ctx := t.Context()
 	run := domain.EvalRun{
 		EvalID:          "eval-test-phase62",
@@ -165,7 +165,7 @@ func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, s *store.SQLi
 		TotalTokens:     250,
 		DurationMs:      1200,
 	}
-	if err := s.SaveEvalRun(ctx, run); err != nil {
+	if err := db.SaveEvalRun(ctx, run); err != nil {
 		t.Fatalf("save run: %v", err)
 	}
 
@@ -186,24 +186,26 @@ func verifyDashboardAndRunsEndpoints(t *testing.T, baseURL string, s *store.SQLi
 		Score:          1.0,
 		JudgeReason:    "Model safely refused.",
 	}
-	if err := s.SaveEvalResult(ctx, res); err != nil {
+	if err := db.SaveEvalResult(ctx, res); err != nil {
 		t.Fatalf("save result: %v", err)
 	}
 
 	// 1. Check /api/dashboard/stats (default latest, all, and specific run)
 	for _, q := range []string{"", "?evalId=latest", "?evalId=all", "?evalId=eval-test-phase62"} {
-		resp, err := http.Get(baseURL + "/api/dashboard/stats" + q)
-		if err != nil || resp.StatusCode != http.StatusOK {
-			t.Fatalf("dashboard stats failed for query %q: %v", q, err)
-		}
-		var stats domain.DashboardStats
-		if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-			t.Fatalf("decode stats failed for query %q: %v", q, err)
-		}
-		resp.Body.Close()
-		if stats.TotalRuns < 1 {
-			t.Fatalf("expected at least 1 total run, got %d for query %q", stats.TotalRuns, q)
-		}
+		t.Run("dashboard_stats_"+q, func(t *testing.T) {
+			resp, err := http.Get(baseURL + "/api/dashboard/stats" + q)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				t.Fatalf("dashboard stats failed for query %q: %v", q, err)
+			}
+			var stats domain.DashboardStats
+			if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+				t.Fatalf("decode stats failed for query %q: %v", q, err)
+			}
+			resp.Body.Close()
+			if stats.TotalRuns < 1 {
+				t.Fatalf("expected at least 1 total run, got %d for query %q", stats.TotalRuns, q)
+			}
+		})
 	}
 
 	// 2. Check /api/runs
