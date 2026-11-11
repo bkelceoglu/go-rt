@@ -27,6 +27,14 @@ func (s *SQLiteStore) SaveDatasetPrompts(ctx context.Context, datasetName string
 	return nil
 }
 
+// ReplaceDatasetPrompts replaces all prompts for datasetName in SQLite prompt_bank with the provided records.
+func (s *SQLiteStore) ReplaceDatasetPrompts(ctx context.Context, datasetName string, records []domain.DatasetRecord) error {
+	if err := s.db.WithContext(ctx).Where("dataset_name = ?", datasetName).Delete(&PromptBankRecord{}).Error; err != nil {
+		return fmt.Errorf("clear dataset prompts for %s: %w", datasetName, err)
+	}
+	return s.SaveDatasetPrompts(ctx, datasetName, records)
+}
+
 func buildPromptBankRows(datasetName string, records []domain.DatasetRecord) []PromptBankRecord {
 	now := time.Now().UTC().Format(time.RFC3339)
 	seen := make(map[string]struct{}, len(records))

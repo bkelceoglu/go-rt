@@ -12,7 +12,13 @@ import (
 	"github.com/caveman/go-rt/internal/store"
 )
 
-const hfRowsEndpoint = "https://datasets-server.huggingface.co/rows"
+const (
+	hfRowsEndpoint = "https://datasets-server.huggingface.co/rows"
+	hfSizeEndpoint = "https://datasets-server.huggingface.co/size?dataset="
+	hfMaxPages     = 10
+)
+
+var hfRequestSem = make(chan struct{}, 1)
 
 type hfRowsResponse struct {
 	Rows []struct {
@@ -20,19 +26,96 @@ type hfRowsResponse struct {
 	} `json:"rows"`
 }
 
-func fetchHFSource(ctx context.Context, promptsDir string, src store.DatasetSourceRecord) ([]domain.DatasetRecord, error) {
-	records := fetchHFRowsPages(ctx, src, 3)
+type hfSplitInfo struct {
+	Config  string `json:"config"`
+	Split   string `json:"split"`
+	NumRows int    `json:"num_rows"`
+}
+
+type hfSizeResponse struct {
+	Size struct {
+		Splits []hfSplitInfo `json:"splits"`
+	} `json:"size"`
+}
+
+func fetchHFSource(ctx context.Context, db *store.SQLiteStore, promptsDir string, src store.DatasetSourceRecord) ([]domain.DatasetRecord, error) {
+	select {
+	case hfRequestSem <- struct{}{}:
+		defer func() { <-hfRequestSem }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	existing, _ := db.LoadDatasetPrompts(ctx, src.DatasetName)
+	records := fetchAllHFSplits(ctx, src, len(existing))
 	if len(records) > 0 {
 		return records, nil
 	}
 	return ReadCSV(filepath.Join(promptsDir, src.DatasetName+".csv"))
 }
 
-func fetchHFRowsPages(ctx context.Context, src store.DatasetSourceRecord, pages int) []domain.DatasetRecord {
+func fetchAllHFSplits(ctx context.Context, src store.DatasetSourceRecord, existingCount int) []domain.DatasetRecord {
+	splits := discoverHFSplits(ctx, src)
 	all := []domain.DatasetRecord{}
+	for _, sp := range splits {
+		splitSrc := src
+		splitSrc.HFSplit = sp.Split
+		startOffset, pages := computeHFPageWindow(sp.NumRows, existingCount)
+		all = append(all, fetchHFRowsWindow(ctx, splitSrc, startOffset, pages)...)
+	}
+	return all
+}
+
+func discoverHFSplits(ctx context.Context, src store.DatasetSourceRecord) []hfSplitInfo {
+	body, err := fetchURL(ctx, hfSizeEndpoint+url.QueryEscape(src.URLOrRepo))
+	if err != nil {
+		return []hfSplitInfo{{Config: src.HFConfig, Split: src.HFSplit, NumRows: 1500}}
+	}
+	var parsed hfSizeResponse
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		return []hfSplitInfo{{Config: src.HFConfig, Split: src.HFSplit, NumRows: 1500}}
+	}
+	return selectTargetSplits(parsed.Size.Splits, src)
+}
+
+func selectTargetSplits(splits []hfSplitInfo, src store.DatasetSourceRecord) []hfSplitInfo {
+	matched := []hfSplitInfo{}
+	for _, sp := range splits {
+		if sp.Config == src.HFConfig && isRelevantSplit(sp.Split, src.HFSplit) {
+			matched = append(matched, sp)
+		}
+	}
+	if len(matched) == 0 {
+		return []hfSplitInfo{{Config: src.HFConfig, Split: src.HFSplit, NumRows: 1500}}
+	}
+	return matched
+}
+
+func isRelevantSplit(candidate, configured string) bool {
+	if candidate == configured {
+		return true
+	}
+	return configured == "train" && (candidate == "test" || candidate == "validation")
+}
+
+func computeHFPageWindow(numRows, existingCount int) (int, int) {
+	totalPages := (max(numRows, 100) + 99) / 100
+	if totalPages <= hfMaxPages {
+		return 0, totalPages
+	}
+	maxStart := max(1, numRows-(hfMaxPages*100))
+	startOffset := ((existingCount * 3) / 100 * 100) % maxStart
+	return startOffset, hfMaxPages
+}
+
+func fetchHFRowsWindow(ctx context.Context, src store.DatasetSourceRecord, startOffset, pages int) []domain.DatasetRecord {
+	all := []domain.DatasetRecord{}
+	if startOffset > 0 {
+		if body, err := fetchURL(ctx, buildHFRowsURL(src, 0, 100)); err == nil {
+			all = append(all, decodeHFRows(body, src)...)
+		}
+	}
 	for page := range pages {
-		endpoint := buildHFRowsURL(src, page*100, 100)
-		body, err := fetchURL(ctx, endpoint)
+		body, err := fetchURL(ctx, buildHFRowsURL(src, startOffset+(page*100), 100))
 		if err != nil {
 			break
 		}

@@ -76,7 +76,7 @@ func PullAll(ctx context.Context, db *store.SQLiteStore, promptsDir string) ([]s
 func pullConfiguredSources(ctx context.Context, db *store.SQLiteStore, promptsDir string, sources []store.DatasetSourceRecord) []string {
 	results := make([]string, len(sources))
 	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(3)
+	g.SetLimit(4)
 	for i, src := range sources {
 		g.Go(func() error {
 			if p, err := syncSingleSource(gCtx, db, promptsDir, src); err == nil {
@@ -85,9 +85,7 @@ func pullConfiguredSources(ctx context.Context, db *store.SQLiteStore, promptsDi
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return compactPaths(results)
-	}
+	_ = g.Wait()
 	return compactPaths(results)
 }
 
@@ -96,7 +94,8 @@ func syncSingleSource(ctx context.Context, db *store.SQLiteStore, promptsDir str
 	if err != nil || len(records) == 0 {
 		return "", fmt.Errorf("no records for %s", src.DatasetName)
 	}
-	cleaned := Deduplicate(records)
+	existing, _ := db.LoadDatasetPrompts(ctx, src.DatasetName)
+	cleaned := Deduplicate(append(existing, records...))
 	if err := db.SaveDatasetPrompts(ctx, src.DatasetName, cleaned); err != nil {
 		return "", fmt.Errorf("save dataset prompts %s: %w", src.DatasetName, err)
 	}
@@ -109,9 +108,13 @@ func fetchSourceRecords(ctx context.Context, db *store.SQLiteStore, promptsDir s
 	case "csv":
 		return fetchCSVSource(ctx, promptsDir, src)
 	case "hf":
-		return fetchHFSource(ctx, promptsDir, src)
+		return fetchHFSource(ctx, db, promptsDir, src)
 	case "json":
 		return fetchJSONSource(ctx, db, promptsDir, src)
+	case "jsonl":
+		return fetchJSONLSource(ctx, db, promptsDir, src)
+	case "bipia":
+		return fetchBIPIASource(ctx, db, promptsDir, src)
 	case "markdown":
 		return fetchMarkdownSource(ctx, promptsDir, src)
 	default:
@@ -158,7 +161,7 @@ func collectAllBasePrompts(ctx context.Context, db *store.SQLiteStore) []domain.
 func persistMasterSuites(ctx context.Context, db *store.SQLiteStore, promptsDir string, suites map[string][]domain.DatasetRecord) []string {
 	out := make([]string, 0, len(suites))
 	for name, recs := range suites {
-		if err := db.SaveDatasetPrompts(ctx, name, recs); err != nil {
+		if err := db.ReplaceDatasetPrompts(ctx, name, recs); err != nil {
 			continue
 		}
 		path := filepath.Join(promptsDir, name+".csv")
@@ -183,11 +186,12 @@ func fetchURL(ctx context.Context, rawURL string) (string, error) {
 }
 
 func waitRetryBackoff(ctx context.Context, attempt int) error {
-	delay := time.Duration(attempt+1) * 450 * time.Millisecond
+	timer := time.NewTimer(time.Duration(attempt+1) * 450 * time.Millisecond)
+	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(delay):
+	case <-timer.C:
 		return nil
 	}
 }

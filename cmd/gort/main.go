@@ -202,12 +202,53 @@ func printDatasetCatalog(db *store.SQLiteStore) error {
 }
 
 func runPullDatasets(db *store.SQLiteStore) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
+	before := snapshotDatasetCounts(ctx, db)
+	fmt.Printf("%s Pulling & synchronizing remote datasets (GitHub, HuggingFace, Pliny L1B3RT4S, BIPIA, InjecAgent, CyberSecEval)...\n", ui.PrefixGort())
 	if _, err := dataset.PullAll(ctx, db, defaultPromptsDir); err != nil {
 		return err
 	}
-	return printDatasetCatalog(db)
+	return printPulledDatasetSummary(ctx, db, before)
+}
+
+func snapshotDatasetCounts(ctx context.Context, db *store.SQLiteStore) map[string]int {
+	list, _ := db.ListDatasets(ctx)
+	out := make(map[string]int, len(list))
+	for _, d := range list {
+		out[d.DatasetName] = d.PromptCount
+	}
+	return out
+}
+
+func printPulledDatasetSummary(ctx context.Context, db *store.SQLiteStore, before map[string]int) error {
+	list, err := db.ListDatasets(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s (%s):\n\n", ui.BoldCyan("GORT SQLite Prompt Bank — Pull Summary"), ui.Bold(fmt.Sprintf("%d named prompt sets", len(list))))
+	totalAdded := printDatasetDiffRows(list, before)
+	fmt.Printf("\n%s Synchronized %s total prompts (%s).\n",
+		ui.PrefixGort(), ui.BoldGreen(fmt.Sprintf("%d", sumPromptCounts(list))), formatDeltaLabel(totalAdded))
+	return nil
+}
+
+func printDatasetDiffRows(list []store.DatasetSummary, before map[string]int) int {
+	var totalAdded int
+	for i, d := range list {
+		delta := max(0, d.PromptCount-before[d.DatasetName])
+		totalAdded += delta
+		fmt.Printf("  %2d. %-32s | %s prompts (%-12s) | Source: %s\n",
+			i+1, ui.Bold(d.DatasetName), ui.BoldGreen(fmt.Sprintf("%6d", d.PromptCount)), formatDeltaLabel(delta), ui.Dim(d.Source))
+	}
+	return totalAdded
+}
+
+func formatDeltaLabel(delta int) string {
+	if delta > 0 {
+		return ui.BoldGreen(fmt.Sprintf("+%d new", delta))
+	}
+	return ui.Dim("+0 new")
 }
 
 type assessmentContext struct {
