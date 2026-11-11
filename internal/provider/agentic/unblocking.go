@@ -3,6 +3,7 @@ package agentic
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/caveman/go-rt/internal/domain"
@@ -40,10 +41,8 @@ func NeedsUnblocking(targetOutput string) bool {
 		return false
 	}
 	lower := strings.ToLower(trimmed)
-	for _, marker := range clarifyingMarkers {
-		if strings.Contains(lower, marker) {
-			return true
-		}
+	if slices.ContainsFunc(clarifyingMarkers, func(m string) bool { return strings.Contains(lower, m) }) {
+		return true
 	}
 	return strings.HasSuffix(trimmed, "?") && len(trimmed) < 320
 }

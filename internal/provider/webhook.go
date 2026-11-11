@@ -14,6 +14,8 @@ import (
 	"github.com/caveman/go-rt/internal/domain"
 )
 
+var _ domain.Provider = (*WebhookProvider)(nil)
+
 // WebhookProvider executes arbitrary REST HTTP endpoints, API Gateways, and custom chatbot services.
 type WebhookProvider struct {
 	spec       domain.ProviderSpec
@@ -26,10 +28,9 @@ func NewWebhook(spec domain.ProviderSpec, client *http.Client) *WebhookProvider 
 	if client == nil {
 		client = &http.Client{Timeout: 90 * time.Second}
 	}
-	url := resolveWebhookURL(spec.ID, spec.BaseURL)
 	return &WebhookProvider{
 		spec:       spec,
-		targetURL:  url,
+		targetURL:  resolveWebhookURL(spec.ID, spec.BaseURL),
 		httpClient: client,
 	}
 }
@@ -41,11 +42,7 @@ func (w *WebhookProvider) ID() string {
 
 // Call executes the HTTP request against the configured webhook/gateway.
 func (w *WebhookProvider) Call(ctx context.Context, req domain.PromptRequest) (domain.ProviderResponse, error) {
-	bodyBytes, err := w.renderBody(req)
-	if err != nil {
-		return domain.ProviderResponse{}, err
-	}
-	httpReq, err := w.buildHTTPRequest(ctx, bodyBytes)
+	httpReq, err := w.prepareWebhookRequest(ctx, req)
 	if err != nil {
 		return domain.ProviderResponse{}, err
 	}
@@ -54,8 +51,15 @@ func (w *WebhookProvider) Call(ctx context.Context, req domain.PromptRequest) (d
 	if err != nil {
 		return domain.ProviderResponse{}, err
 	}
-	latency := time.Since(start).Milliseconds()
-	return w.parseResponse(respBytes, statusCode, latency)
+	return w.parseResponse(respBytes, statusCode, time.Since(start).Milliseconds())
+}
+
+func (w *WebhookProvider) prepareWebhookRequest(ctx context.Context, req domain.PromptRequest) (*http.Request, error) {
+	bodyBytes, err := w.renderBody(req)
+	if err != nil {
+		return nil, err
+	}
+	return w.buildHTTPRequest(ctx, bodyBytes)
 }
 
 func (w *WebhookProvider) renderBody(req domain.PromptRequest) ([]byte, error) {
@@ -63,19 +67,35 @@ func (w *WebhookProvider) renderBody(req domain.PromptRequest) ([]byte, error) {
 		return renderBodyTemplate(w.spec.BodyTmpl, req)
 	}
 	defaultPayload := map[string]string{"prompt": req.Prompt}
-	return json.Marshal(defaultPayload)
+	data, err := json.Marshal(defaultPayload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal webhook payload: %w", err)
+	}
+	return data, nil
 }
 
 func renderBodyTemplate(tmpl string, req domain.PromptRequest) ([]byte, error) {
-	escapedPrompt, _ := json.Marshal(req.Prompt)
-	cleanPrompt := strings.Trim(string(escapedPrompt), `"`)
+	cleanPrompt, err := escapeJSONString(req.Prompt)
+	if err != nil {
+		return nil, err
+	}
 	rendered := strings.ReplaceAll(tmpl, "{{prompt}}", cleanPrompt)
 	for k, v := range req.Vars {
-		escapedVal, _ := json.Marshal(v)
-		cleanVal := strings.Trim(string(escapedVal), `"`)
+		cleanVal, err := escapeJSONString(v)
+		if err != nil {
+			return nil, err
+		}
 		rendered = strings.ReplaceAll(rendered, "{{"+k+"}}", cleanVal)
 	}
 	return []byte(rendered), nil
+}
+
+func escapeJSONString(val string) (string, error) {
+	escaped, err := json.Marshal(val)
+	if err != nil {
+		return "", fmt.Errorf("marshal template string: %w", err)
+	}
+	return strings.Trim(string(escaped), `"`), nil
 }
 
 func (w *WebhookProvider) buildHTTPRequest(ctx context.Context, body []byte) (*http.Request, error) {
@@ -108,7 +128,7 @@ func (w *WebhookProvider) executeHTTP(req *http.Request) ([]byte, int, error) {
 
 func (w *WebhookProvider) parseResponse(data []byte, status int, latency int64) (domain.ProviderResponse, error) {
 	if status < 200 || status >= 300 {
-		return domain.ProviderResponse{}, fmt.Errorf("webhook %s returned HTTP %d: %s", w.spec.ID, status, string(data))
+		return domain.ProviderResponse{}, fmt.Errorf("webhook %s returned http %d: %s", w.spec.ID, status, string(data))
 	}
 	output, err := extractResponseText(data, w.spec.RespPath)
 	if err != nil {
@@ -140,23 +160,34 @@ func traverseJSONPath(curr any, parts []string) (any, error) {
 	if len(parts) == 0 {
 		return curr, nil
 	}
-	head, tail := parts[0], parts[1:]
+	next, err := stepJSONPath(curr, parts[0])
+	if err != nil {
+		return nil, err
+	}
+	return traverseJSONPath(next, parts[1:])
+}
+
+func stepJSONPath(curr any, key string) (any, error) {
 	switch v := curr.(type) {
 	case map[string]any:
-		child, ok := v[head]
+		child, ok := v[key]
 		if !ok {
-			return nil, fmt.Errorf("key %q not found in response JSON", head)
+			return nil, fmt.Errorf("key %q not found in response json", key)
 		}
-		return traverseJSONPath(child, tail)
+		return child, nil
 	case []any:
-		idx, err := strconv.Atoi(head)
-		if err != nil || idx < 0 || idx >= len(v) {
-			return nil, fmt.Errorf("invalid array index %q in response JSON", head)
-		}
-		return traverseJSONPath(v[idx], tail)
+		return stepJSONSlice(v, key)
 	default:
-		return nil, fmt.Errorf("cannot traverse into %T for key %q", curr, head)
+		return nil, fmt.Errorf("cannot traverse into %T for key %q", curr, key)
 	}
+}
+
+func stepJSONSlice(slice []any, key string) (any, error) {
+	idx, err := strconv.Atoi(key)
+	if err != nil || idx < 0 || idx >= len(slice) {
+		return nil, fmt.Errorf("invalid array index %q in response json", key)
+	}
+	return slice[idx], nil
 }
 
 func fallbackExtract(data []byte) string {

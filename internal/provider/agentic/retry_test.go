@@ -7,6 +7,8 @@ import (
 	"github.com/caveman/go-rt/internal/domain"
 )
 
+var _ domain.Provider = (*mockRetryTarget)(nil)
+
 type mockRetryTarget struct {
 	attempts int
 }
@@ -24,7 +26,7 @@ func TestRetryDecoratorRetriesOnRefusal(t *testing.T) {
 	target := &mockRetryTarget{}
 	dec := NewRetryDecorator(target, nil, 2)
 
-	resp, err := dec.Call(context.Background(), domain.PromptRequest{Prompt: "Secret query"})
+	resp, err := dec.Call(t.Context(), domain.PromptRequest{Prompt: "Secret query"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -8,13 +8,14 @@ import (
 
 // BuildFromSpec constructs a concrete Provider (Webhook or OpenAI-compatible) wrapped in RateLimiter.
 func BuildFromSpec(spec domain.ProviderSpec) domain.Provider {
-	var base domain.Provider
+	return NewRateLimitedProvider(buildBaseProvider(spec), 0, 0, 4)
+}
+
+func buildBaseProvider(spec domain.ProviderSpec) domain.Provider {
 	if strings.HasPrefix(spec.ID, "webhook:") || spec.BodyTmpl != "" {
-		base = NewWebhook(spec, nil)
-	} else {
-		base = NewOpenAICompatible(spec, nil)
+		return NewWebhook(spec, nil)
 	}
-	return NewRateLimitedProvider(base, 0, 0, 4)
+	return NewOpenAICompatible(spec, nil)
 }
 
 // BuildJudge constructs a Judge evaluation provider from JudgeSpec.

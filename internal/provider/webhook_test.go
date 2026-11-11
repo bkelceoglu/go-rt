@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +33,7 @@ func TestWebhookProviderWithCustomBodyAndPath(t *testing.T) {
 		RespPath: "data.replies.0.text",
 	}
 	p := NewWebhook(spec, server.Client())
-	res, err := p.Call(context.Background(), domain.PromptRequest{Prompt: "test attack"})
+	res, err := p.Call(t.Context(), domain.PromptRequest{Prompt: "test attack"})
 	if err != nil {
 		t.Fatalf("unexpected call error: %v", err)
 	}
@@ -58,7 +57,7 @@ func TestWebhookFallbackAndErrors(t *testing.T) {
 		BaseURL: server.URL,
 	}
 	p := NewWebhook(spec, server.Client())
-	res, err := p.Call(context.Background(), domain.PromptRequest{Prompt: "hi"})
+	res, err := p.Call(t.Context(), domain.PromptRequest{Prompt: "hi"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -19,7 +19,10 @@ type ConversationMemory struct {
 
 // NewConversationMemory creates an empty multi-turn conversation buffer.
 func NewConversationMemory() *ConversationMemory {
-	return &ConversationMemory{}
+	return &ConversationMemory{
+		active: []domain.ConversationTurn{},
+		audit:  []domain.ConversationTurn{},
+	}
 }
 
 // AppendExchange records a completed user/assistant turn in both active and audit buffers.
@@ -76,8 +79,8 @@ func (m *ConversationMemory) FormatTranscript() string {
 	}
 	var sb strings.Builder
 	for _, t := range turns {
-		sb.WriteString(fmt.Sprintf("Turn %d User: %s\nTurn %d Assistant: %s\n\n",
-			t.Turn, t.Prompt, t.Turn, t.Output))
+		fmt.Fprintf(&sb, "Turn %d User: %s\nTurn %d Assistant: %s\n\n",
+			t.Turn, t.Prompt, t.Turn, t.Output)
 	}
 	return strings.TrimSpace(sb.String())
 }
