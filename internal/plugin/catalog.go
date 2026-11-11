@@ -51,38 +51,49 @@ func ExpandSpecs(ctx context.Context, db *store.SQLiteStore, specs []domain.Plug
 	if err != nil {
 		return nil, err
 	}
-	seen := make(map[string]bool)
-	var out []domain.PluginSpec
-	for _, spec := range specs {
-		out = appendExpandedSpec(out, seen, collections, spec, defaultNumTests)
+	exp := &specExpander{
+		collections: collections,
+		seen:        make(map[string]bool),
+		defaultNum:  defaultNumTests,
+		out:         []domain.PluginSpec{},
 	}
-	return out, nil
+	for _, spec := range specs {
+		exp.appendSpec(spec)
+	}
+	return exp.out, nil
 }
 
-func appendExpandedSpec(
-	out []domain.PluginSpec,
-	seen map[string]bool,
-	collections map[string][]string,
-	spec domain.PluginSpec,
-	defaultNum int,
-) []domain.PluginSpec {
-	num := spec.NumTests
-	if num <= 0 {
-		num = defaultNum
+type specExpander struct {
+	collections map[string][]string
+	seen        map[string]bool
+	defaultNum  int
+	out         []domain.PluginSpec
+}
+
+func (e *specExpander) appendSpec(spec domain.PluginSpec) {
+	if spec.NumTests <= 0 {
+		spec.NumTests = e.defaultNum
 	}
-	if members, ok := collections[spec.ID]; ok {
-		for _, id := range members {
-			if !seen[id] {
-				seen[id] = true
-				out = append(out, domain.PluginSpec{ID: id, NumTests: num, Severity: spec.Severity, Config: spec.Config})
-			}
+	if members, ok := e.collections[spec.ID]; ok {
+		e.appendCollectionMembers(members, spec)
+		return
+	}
+	if !e.seen[spec.ID] {
+		e.seen[spec.ID] = true
+		e.out = append(e.out, spec)
+	}
+}
+
+func (e *specExpander) appendCollectionMembers(members []string, parent domain.PluginSpec) {
+	for _, id := range members {
+		if !e.seen[id] {
+			e.seen[id] = true
+			e.out = append(e.out, domain.PluginSpec{
+				ID:       id,
+				NumTests: parent.NumTests,
+				Severity: parent.Severity,
+				Config:   parent.Config,
+			})
 		}
-		return out
 	}
-	if !seen[spec.ID] {
-		seen[spec.ID] = true
-		spec.NumTests = num
-		out = append(out, spec)
-	}
-	return out
 }

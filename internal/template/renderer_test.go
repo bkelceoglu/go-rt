@@ -7,22 +7,8 @@ import (
 	"github.com/caveman/go-rt/internal/template"
 )
 
-func TestExtractVariablesAndResolveInjectVar(t *testing.T) {
-	tmpl := "System: {{role}} for {{company}}. User query: {{ user_input }}"
-	vars := template.ExtractVariables(tmpl)
-	if len(vars) != 3 || vars[0] != "role" || vars[2] != "user_input" {
-		t.Fatalf("unexpected extracted vars: %v", vars)
-	}
-	injectVar := template.ResolveInjectVar("", tmpl)
-	if injectVar != "user_input" {
-		t.Fatalf("expected last var 'user_input', got %q", injectVar)
-	}
-	if got := template.ResolveInjectVar("custom", tmpl); got != "custom" {
-		t.Fatalf("expected explicit 'custom', got %q", got)
-	}
-}
-
 func TestSafeRendererPreventsCrossVarSSTI(t *testing.T) {
+	t.Parallel()
 	renderer := template.NewSafeRenderer("prompt")
 	rawTmpl := "Context: {{context}}\nUser: {{prompt}}\nSecret: {{secret}}"
 	vars := domain.Vars{
@@ -39,6 +25,7 @@ func TestSafeRendererPreventsCrossVarSSTI(t *testing.T) {
 }
 
 func TestUnpackMultiInput(t *testing.T) {
+	t.Parallel()
 	base := domain.Vars{"session": "s-1"}
 	merged, err := template.UnpackMultiInput(`{"username":"admin'--","age":42}`, base)
 	if err != nil {

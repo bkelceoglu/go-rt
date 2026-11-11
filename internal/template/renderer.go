@@ -33,13 +33,12 @@ func (r *SafeRenderer) replaceFirstStage(match string, vars domain.Vars, boundar
 	if len(sub) < 2 {
 		return match
 	}
-	varName := sub[1]
-	val, exists := vars[varName]
+	val, exists := vars[sub[1]]
 	if !exists {
 		return match
 	}
-	if slices.Contains(r.SkipVars, varName) {
-		token := fmt.Sprintf("__GORT_INJECT_BOUNDARY_%s__", varName)
+	if slices.Contains(r.SkipVars, sub[1]) {
+		token := fmt.Sprintf("__GORT_INJECT_BOUNDARY_%s__", sub[1])
 		boundaries[token] = val
 		return token
 	}

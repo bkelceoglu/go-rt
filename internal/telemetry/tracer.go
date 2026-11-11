@@ -1,9 +1,11 @@
 package telemetry
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/caveman/go-rt/internal/domain"
@@ -29,11 +31,8 @@ func GenerateSpanID() string {
 
 // NewSpan creates an initialized OTelSpanRecord with nanosecond start time.
 func NewSpan(traceID, parentSpanID, evalID, resultID, name string, kind domain.OTelSpanKind) domain.OTelSpanRecord {
-	if traceID == "" {
-		traceID = GenerateTraceID()
-	}
 	return domain.OTelSpanRecord{
-		TraceID:           traceID,
+		TraceID:           cmp.Or(traceID, GenerateTraceID()),
 		SpanID:            GenerateSpanID(),
 		ParentSpanID:      parentSpanID,
 		EvalID:            evalID,
@@ -49,10 +48,9 @@ func NewSpan(traceID, parentSpanID, evalID, resultID, name string, kind domain.O
 // FinishSpan sets the end time and status code on an active span.
 func FinishSpan(span *domain.OTelSpanRecord, success bool) {
 	span.EndTimeUnixNano = time.Now().UnixNano()
+	span.StatusCode = "ERROR"
 	if success {
 		span.StatusCode = "OK"
-	} else {
-		span.StatusCode = "ERROR"
 	}
 }
 
@@ -83,11 +81,7 @@ func BuildRedteamAttributes(pluginID, category, attackType, strategyID string, p
 // MergeAttributes combines redteam and gen_ai attributes into a single map.
 func MergeAttributes(a, b map[string]any) map[string]any {
 	merged := make(map[string]any, len(a)+len(b))
-	for k, v := range a {
-		merged[k] = v
-	}
-	for k, v := range b {
-		merged[k] = v
-	}
+	maps.Copy(merged, a)
+	maps.Copy(merged, b)
 	return merged
 }

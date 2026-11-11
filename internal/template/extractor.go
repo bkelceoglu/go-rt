@@ -10,7 +10,7 @@ var placeholderRegex = regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\
 // ExtractVariables returns unique variable names referenced as {{var}} in order of appearance.
 func ExtractVariables(tmpl string) []string {
 	matches := placeholderRegex.FindAllStringSubmatch(tmpl, -1)
-	var vars []string
+	vars := []string{}
 	for _, match := range matches {
 		if len(match) > 1 && !slices.Contains(vars, match[1]) {
 			vars = append(vars, match[1])

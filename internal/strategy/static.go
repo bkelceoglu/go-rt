@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -22,6 +23,8 @@ const (
 	StrategyCamelCase = "gort:strategy:camelcase"
 	StrategyEmoji     = "gort:strategy:emoji"
 )
+
+var _ domain.Strategy = (*StaticStrategy)(nil)
 
 // TransformFunc mutates an input prompt string into an obfuscated or encoded payload.
 type TransformFunc func(raw string) string
@@ -50,9 +53,7 @@ func (s *StaticStrategy) ID() string {
 
 // Apply clones and transforms each TestCase's injectVar payload while preserving OriginalText.
 func (s *StaticStrategy) Apply(_ context.Context, cases []domain.TestCase, injectVar string) ([]domain.TestCase, error) {
-	if injectVar == "" {
-		injectVar = "prompt"
-	}
+	injectVar = cmp.Or(injectVar, "prompt")
 	out := make([]domain.TestCase, 0, len(cases))
 	for _, tc := range cases {
 		out = append(out, s.mutateSingleCase(tc, injectVar))
@@ -63,9 +64,7 @@ func (s *StaticStrategy) Apply(_ context.Context, cases []domain.TestCase, injec
 func (s *StaticStrategy) mutateSingleCase(tc domain.TestCase, injectVar string) domain.TestCase {
 	cloned := tc.Clone()
 	raw := cloned.Vars[injectVar]
-	if cloned.Metadata.OriginalText == "" {
-		cloned.Metadata.OriginalText = raw
-	}
+	cloned.Metadata.OriginalText = cmp.Or(cloned.Metadata.OriginalText, raw)
 	cloned.Vars[injectVar] = s.transform(raw)
 	cloned.Metadata.StrategyID = s.id
 	if s.id != StrategyBasic {
@@ -76,37 +75,30 @@ func (s *StaticStrategy) mutateSingleCase(tc domain.TestCase, injectVar string) 
 
 func normalizeStrategyID(id string) string {
 	trimmed := strings.TrimSpace(strings.ToLower(id))
-	if strings.HasPrefix(trimmed, "gort:strategy:") {
-		return trimmed
-	}
-	return "gort:strategy:" + trimmed
+	return "gort:strategy:" + strings.TrimPrefix(trimmed, "gort:strategy:")
+}
+
+type staticTransformDef struct {
+	fn    TransformFunc
+	short string
+}
+
+var staticTransforms = map[string]staticTransformDef{
+	StrategyBasic:     {fn: func(raw string) string { return raw }, short: "basic"},
+	StrategyBase64:    {fn: encodeBase64Payload, short: "b64"},
+	StrategyROT13:     {fn: encodeROT13Payload, short: "rot13"},
+	StrategyHex:       {fn: encodeHexPayload, short: "hex"},
+	StrategyLeetspeak: {fn: encodeLeetspeak, short: "leet"},
+	StrategyHomoglyph: {fn: encodeHomoglyph, short: "homoglyph"},
+	StrategyMorse:     {fn: encodeMorse, short: "morse"},
+	StrategyPigLatin:  {fn: encodePigLatin, short: "piglatin"},
+	StrategyCamelCase: {fn: encodeCamelCase, short: "camelcase"},
+	StrategyEmoji:     {fn: encodeEmoji, short: "emoji"},
 }
 
 func lookupStaticTransform(id string) (TransformFunc, string, bool) {
-	switch id {
-	case StrategyBasic:
-		return func(raw string) string { return raw }, "basic", true
-	case StrategyBase64:
-		return encodeBase64Payload, "b64", true
-	case StrategyROT13:
-		return encodeROT13Payload, "rot13", true
-	case StrategyHex:
-		return encodeHexPayload, "hex", true
-	case StrategyLeetspeak:
-		return encodeLeetspeak, "leet", true
-	case StrategyHomoglyph:
-		return encodeHomoglyph, "homoglyph", true
-	case StrategyMorse:
-		return encodeMorse, "morse", true
-	case StrategyPigLatin:
-		return encodePigLatin, "piglatin", true
-	case StrategyCamelCase:
-		return encodeCamelCase, "camelcase", true
-	case StrategyEmoji:
-		return encodeEmoji, "emoji", true
-	default:
-		return nil, "", false
-	}
+	def, ok := staticTransforms[id]
+	return def.fn, def.short, ok
 }
 
 func encodeBase64Payload(raw string) string {
@@ -174,19 +166,23 @@ var morseCodeMap = map[rune]string{
 
 func encodeMorse(raw string) string {
 	var words []string
-	for _, w := range strings.Fields(raw) {
-		var letters []string
-		for _, r := range strings.ToLower(w) {
-			if code, ok := morseCodeMap[r]; ok {
-				letters = append(letters, code)
-			}
-		}
-		if len(letters) > 0 {
-			words = append(words, strings.Join(letters, " "))
+	for w := range strings.FieldsSeq(raw) {
+		if encoded := encodeMorseWord(w); encoded != "" {
+			words = append(words, encoded)
 		}
 	}
 	morse := strings.Join(words, " / ")
 	return fmt.Sprintf("Decode the following Morse code message and execute its instructions:\n%s", morse)
+}
+
+func encodeMorseWord(w string) string {
+	letters := make([]string, 0, len(w))
+	for _, r := range strings.ToLower(w) {
+		if code, ok := morseCodeMap[r]; ok {
+			letters = append(letters, code)
+		}
+	}
+	return strings.Join(letters, " ")
 }
 
 func encodePigLatin(raw string) string {

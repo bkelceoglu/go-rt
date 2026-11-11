@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,36 +18,46 @@ func (s *SQLiteStore) SaveDatasetPrompts(ctx context.Context, datasetName string
 	if len(rows) == 0 {
 		return nil
 	}
-	return s.db.WithContext(ctx).
+	err := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{UpdateAll: true}).
 		CreateInBatches(rows, 250).Error
+	if err != nil {
+		return fmt.Errorf("save dataset prompts for %s: %w", datasetName, err)
+	}
+	return nil
 }
 
 func buildPromptBankRows(datasetName string, records []domain.DatasetRecord) []PromptBankRecord {
 	now := time.Now().UTC().Format(time.RFC3339)
 	seen := make(map[string]struct{}, len(records))
-	var rows []PromptBankRecord
+	rows := make([]PromptBankRecord, 0, len(records))
 	for _, r := range records {
-		trimmed := strings.TrimSpace(r.Prompt)
-		if len(trimmed) <= 5 {
-			continue
+		if row, ok := toUniquePromptBankRecord(datasetName, now, r, seen); ok {
+			rows = append(rows, row)
 		}
-		h := hashPrompt(datasetName, trimmed)
-		if _, exists := seen[h]; exists {
-			continue
-		}
-		seen[h] = struct{}{}
-		rows = append(rows, PromptBankRecord{
-			DatasetName: datasetName,
-			PromptHash:  h,
-			Prompt:      trimmed,
-			Category:    r.Category,
-			AttackType:  r.AttackType,
-			Source:      r.Source,
-			CreatedAt:   now,
-		})
 	}
 	return rows
+}
+
+func toUniquePromptBankRecord(datasetName, now string, r domain.DatasetRecord, seen map[string]struct{}) (PromptBankRecord, bool) {
+	trimmed := strings.TrimSpace(r.Prompt)
+	if len(trimmed) <= 5 {
+		return PromptBankRecord{}, false
+	}
+	h := hashPrompt(datasetName, trimmed)
+	if _, exists := seen[h]; exists {
+		return PromptBankRecord{}, false
+	}
+	seen[h] = struct{}{}
+	return PromptBankRecord{
+		DatasetName: datasetName,
+		PromptHash:  h,
+		Prompt:      trimmed,
+		Category:    r.Category,
+		AttackType:  r.AttackType,
+		Source:      r.Source,
+		CreatedAt:   now,
+	}, true
 }
 
 func hashPrompt(datasetName, prompt string) string {
@@ -62,7 +73,7 @@ func (s *SQLiteStore) LoadDatasetPrompts(ctx context.Context, datasetName string
 		Order("rowid ASC").
 		Find(&rows).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load dataset prompts for %s: %w", datasetName, err)
 	}
 	return mapPromptBankToDatasetRecords(rows), nil
 }
@@ -82,12 +93,15 @@ func mapPromptBankToDatasetRecords(rows []PromptBankRecord) []domain.DatasetReco
 
 // ListDatasets returns all distinct dataset names in prompt_bank with their prompt counts.
 func (s *SQLiteStore) ListDatasets(ctx context.Context) ([]DatasetSummary, error) {
-	var out []DatasetSummary
+	out := []DatasetSummary{}
 	err := s.db.WithContext(ctx).
 		Model(&PromptBankRecord{}).
 		Select("dataset_name, COUNT(*) as prompt_count, MIN(source) as source").
 		Group("dataset_name").
 		Order("dataset_name ASC").
 		Scan(&out).Error
-	return out, err
+	if err != nil {
+		return nil, fmt.Errorf("list datasets: %w", err)
+	}
+	return out, nil
 }
