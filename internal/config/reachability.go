@@ -17,30 +17,29 @@ type ProviderReachabilityResult struct {
 	ID         string `json:"id"`
 	BaseURL    string `json:"baseUrl"`
 	Reachable  bool   `json:"reachable"`
-	StatusCode int    `json:"statusCode,omitempty"`
+	StatusCode int    `json:"statusCode,omitzero"`
 	LatencyMs  int64  `json:"latencyMs"`
 	Message    string `json:"message"`
 }
 
 // CheckProvidersReachability performs non-blocking pre-flight reachability checks on all configured providers.
 func CheckProvidersReachability(ctx context.Context, cfg domain.Config) []ProviderReachabilityResult {
-	var results []ProviderReachabilityResult
+	results := []ProviderReachabilityResult{}
 	for i, t := range cfg.Targets {
-		role := fmt.Sprintf("target[%d]", i)
-		results = append(results, checkSingleProvider(ctx, role, t))
+		results = append(results, checkSingleProvider(ctx, fmt.Sprintf("target[%d]", i), t))
 	}
 	if strings.TrimSpace(cfg.Attacker.ID) != "" {
 		results = append(results, checkSingleProvider(ctx, "attacker", cfg.Attacker))
 	}
-	if strings.TrimSpace(cfg.Judge.ID) != "" {
-		jSpec := domain.ProviderSpec{
-			ID:      cfg.Judge.ID,
-			BaseURL: cfg.Judge.BaseURL,
-			APIKey:  cfg.Judge.APIKey,
-		}
-		results = append(results, checkSingleProvider(ctx, "judge", jSpec))
+	return appendJudgeReachability(ctx, results, cfg.Judge)
+}
+
+func appendJudgeReachability(ctx context.Context, results []ProviderReachabilityResult, judge domain.JudgeSpec) []ProviderReachabilityResult {
+	if strings.TrimSpace(judge.ID) == "" {
+		return results
 	}
-	return results
+	jSpec := domain.ProviderSpec{ID: judge.ID, BaseURL: judge.BaseURL, APIKey: judge.APIKey}
+	return append(results, checkSingleProvider(ctx, "judge", jSpec))
 }
 
 func checkSingleProvider(ctx context.Context, role string, spec domain.ProviderSpec) ProviderReachabilityResult {
@@ -53,9 +52,8 @@ func checkSingleProvider(ctx context.Context, role string, spec domain.ProviderS
 		res.Message = "Provider ID is empty"
 		return res
 	}
-	probeURL := resolveProbeURL(spec)
-	res.BaseURL = probeURL
-	return executeProbeRequest(ctx, probeURL, spec, res)
+	res.BaseURL = resolveProbeURL(spec)
+	return executeProbeRequest(ctx, spec, res)
 }
 
 func resolveProbeURL(spec domain.ProviderSpec) string {
@@ -84,16 +82,28 @@ func defaultBaseURLForID(id string) string {
 	}
 }
 
-func executeProbeRequest(ctx context.Context, probeURL string, spec domain.ProviderSpec, res ProviderReachabilityResult) ProviderReachabilityResult {
+func executeProbeRequest(ctx context.Context, spec domain.ProviderSpec, res ProviderReachabilityResult) ProviderReachabilityResult {
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	client := &http.Client{Timeout: 3 * time.Second}
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, buildModelsOrHealthURL(probeURL), nil)
+	req, err := buildProbeRequest(reqCtx, res.BaseURL, spec)
 	if err != nil {
-		res.Message = fmt.Sprintf("invalid URL: %v", err)
+		res.Message = fmt.Sprintf("invalid url: %v", err)
 		return res
 	}
+	return runTimedProbe(req, res)
+}
+
+func buildProbeRequest(ctx context.Context, probeURL string, spec domain.ProviderSpec) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildModelsOrHealthURL(probeURL), nil)
+	if err != nil {
+		return nil, err
+	}
 	setProbeHeaders(req, spec)
+	return req, nil
+}
+
+func runTimedProbe(req *http.Request, res ProviderReachabilityResult) ProviderReachabilityResult {
+	client := &http.Client{Timeout: 3 * time.Second}
 	start := time.Now()
 	resp, err := client.Do(req)
 	res.LatencyMs = time.Since(start).Milliseconds()
@@ -102,7 +112,7 @@ func executeProbeRequest(ctx context.Context, probeURL string, spec domain.Provi
 		return res
 	}
 	defer resp.Body.Close()
-	return evaluateProbeResponse(resp, res)
+	return evaluateProbeResponse(resp.StatusCode, res)
 }
 
 func buildModelsOrHealthURL(baseURL string) string {
@@ -123,24 +133,20 @@ func setProbeHeaders(req *http.Request, spec domain.ProviderSpec) {
 	}
 }
 
-func evaluateProbeResponse(resp *http.Response, res ProviderReachabilityResult) ProviderReachabilityResult {
-	res.StatusCode = resp.StatusCode
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+func evaluateProbeResponse(code int, res ProviderReachabilityResult) ProviderReachabilityResult {
+	res.StatusCode = code
+	switch {
+	case code >= 200 && code < 300:
 		res.Reachable = true
-		res.Message = fmt.Sprintf("Online (HTTP %d, %dms)", resp.StatusCode, res.LatencyMs)
-		return res
-	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		res.Message = fmt.Sprintf("Authentication required (HTTP %d). Check API key.", resp.StatusCode)
-		return res
-	}
-	// Many local engines return 404/405 for /models but the server is running
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed {
+		res.Message = fmt.Sprintf("Online (HTTP %d, %dms)", code, res.LatencyMs)
+	case code == http.StatusUnauthorized || code == http.StatusForbidden:
+		res.Message = fmt.Sprintf("Authentication required (HTTP %d). Check API key.", code)
+	case code == http.StatusNotFound || code == http.StatusMethodNotAllowed:
 		res.Reachable = true
-		res.Message = fmt.Sprintf("Server reachable (HTTP %d, endpoint ready)", resp.StatusCode)
-		return res
+		res.Message = fmt.Sprintf("Server reachable (HTTP %d, endpoint ready)", code)
+	default:
+		res.Message = fmt.Sprintf("HTTP %d returned by server", code)
 	}
-	res.Message = fmt.Sprintf("HTTP %d returned by server", resp.StatusCode)
 	return res
 }
 

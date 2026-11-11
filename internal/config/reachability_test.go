@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,7 +30,7 @@ func TestCheckProvidersReachability(t *testing.T) {
 		},
 	}
 
-	results := CheckProvidersReachability(context.Background(), cfg)
+	results := CheckProvidersReachability(t.Context(), cfg)
 	if len(results) != 3 {
 		t.Fatalf("expected 3 results, got %d", len(results))
 	}

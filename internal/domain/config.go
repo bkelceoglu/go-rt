@@ -16,7 +16,7 @@ type Config struct {
 	Strategies          []StrategySpec `json:"strategies" yaml:"strategies"`
 	Storage             StorageSpec    `json:"storage" yaml:"storage"`
 	MaxConcurrency      int            `json:"maxConcurrency" yaml:"maxConcurrency"`
-	SequentialSharedLLM bool           `json:"sequentialSharedLlm,omitempty" yaml:"sequentialSharedLlm,omitempty"`
+	SequentialSharedLLM bool           `json:"sequentialSharedLlm,omitzero" yaml:"sequentialSharedLlm,omitempty"`
 }
 
 // ProviderSpec defines connection and inference settings for a Target, Attacker, or Judge provider.
@@ -25,8 +25,8 @@ type ProviderSpec struct {
 	Label    string            `json:"label,omitempty" yaml:"label,omitempty"`
 	BaseURL  string            `json:"baseUrl,omitempty" yaml:"baseUrl,omitempty"`
 	APIKey   string            `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
-	Temp     float64           `json:"temperature,omitempty" yaml:"temperature,omitempty"`
-	MaxToks  int               `json:"maxTokens,omitempty" yaml:"maxTokens,omitempty"`
+	Temp     float64           `json:"temperature,omitzero" yaml:"temperature,omitempty"`
+	MaxToks  int               `json:"maxTokens,omitzero" yaml:"maxTokens,omitempty"`
 	Think    *bool             `json:"think,omitempty" yaml:"think,omitempty"`
 	Headers  map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
 	BodyTmpl string            `json:"bodyTemplate,omitempty" yaml:"bodyTemplate,omitempty"`
@@ -38,8 +38,8 @@ type JudgeSpec struct {
 	ID          string   `json:"id" yaml:"id"`
 	BaseURL     string   `json:"baseUrl,omitempty" yaml:"baseUrl,omitempty"`
 	APIKey      string   `json:"apiKey,omitempty" yaml:"apiKey,omitempty"`
-	Temp        float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
-	MaxToks     int      `json:"maxTokens,omitempty" yaml:"maxTokens,omitempty"`
+	Temp        float64  `json:"temperature,omitzero" yaml:"temperature,omitempty"`
+	MaxToks     int      `json:"maxTokens,omitzero" yaml:"maxTokens,omitempty"`
 	Think       *bool    `json:"think,omitempty" yaml:"think,omitempty"`
 	Rubric      string   `json:"rubric" yaml:"rubric"`
 	NotContains []string `json:"notContains,omitempty" yaml:"notContains,omitempty"`
@@ -55,7 +55,7 @@ type RedteamSpec struct {
 // PluginSpec identifies a single redteam plugin and its optional overrides.
 type PluginSpec struct {
 	ID       string            `json:"id" yaml:"id"`
-	NumTests int               `json:"numTests,omitempty" yaml:"numTests,omitempty"`
+	NumTests int               `json:"numTests,omitzero" yaml:"numTests,omitempty"`
 	Severity Severity          `json:"severity,omitempty" yaml:"severity,omitempty"`
 	Config   map[string]string `json:"config,omitempty" yaml:"config,omitempty"`
 }
@@ -64,8 +64,8 @@ type PluginSpec struct {
 type StrategySpec struct {
 	ID            string   `json:"id" yaml:"id"`
 	Steps         []string `json:"steps,omitempty" yaml:"steps,omitempty"`
-	MaxTurns      int      `json:"maxTurns,omitempty" yaml:"maxTurns,omitempty"`
-	MaxBacktracks int      `json:"maxBacktracks,omitempty" yaml:"maxBacktracks,omitempty"`
+	MaxTurns      int      `json:"maxTurns,omitzero" yaml:"maxTurns,omitempty"`
+	MaxBacktracks int      `json:"maxBacktracks,omitzero" yaml:"maxBacktracks,omitempty"`
 }
 
 // StorageSpec configures OpenTelemetry-compatible SQLite, PostgreSQL, and OTLP persistence.
