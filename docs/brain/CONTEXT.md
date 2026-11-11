@@ -5,8 +5,8 @@
 ---
 
 ## 1. Güncel Durum Özeti
-- **Aktif Faz:** Faz 0..7 Tamamlandı ✅ (CLI Motoru, Web Command Center, YAML Doğrulama & Çift Katmanlı Auto-Fix %100 Hazır)
-- **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`)
+- **Aktif Faz:** Faz 0..8 Tamamlandı ✅ (CLI Motoru, Web Command Center, YAML Doğrulama, Çift Katmanlı Auto-Fix & Go 1.27 `golang-pro` Modernizasyonu %100 Hazır)
+- **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`) — Modern Go 1.27 deyimleri (`os.OpenRoot`, `synctest`, `t.Context()`, `wg.Go()`, `strings.SplitSeq`/`FieldsSeq`/`CutLast`/`CutPrefix`, `slices.Sorted(maps.Keys)`, `new(expr)`, `json:"...,omitzero"`, `atomic.Bool`, compile-time interface guards) tüm paketlerde aktif.
 - **Modül Adı:** `github.com/caveman/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
   - `plugins`: **155 yerleşik plugin** (`gort:plugin:*`)
@@ -28,7 +28,7 @@
   - `gort results` / `gort results <numara|eval_id> [-v|--verbose]` $\rightarrow$ SQLite `eval_runs` ve `eval_results` tablolarındaki geçmiş koşuları ve tüm konuşma geçmişini (`[BACKTRACKED]` turlar dahil) harici `sqlite3` olmadan doğrudan terminalde gösterir.
   - `tail -f .gort/gort.log` $\rightarrow$ Her koşuda `--verbose` bağımsız olarak tüm adımları zaman damgalı (`RFC3339`) canlı log dosyasına (`internal/telemetry/livelog.go`) anlık yazar.
   - `gort pull` $\rightarrow$ Tüm uzak veri setlerini indirip SQLite `prompt_bank` ve `prompts/` klasörünü senkronize eder.
-- **Derleme Durumu:** `make all` (`go fmt`, `go vet`, `go test`, `go build`) temiz (Yeşil).
+- **Derleme Durumu:** `make all` (`go fmt`, `go vet`, `go test`, `go build`) ve `make test-race` (`go test -race ./...`) sıfır veri yarışı ve sıfır uyarı ile temiz (Yeşil).
 
 ---
 
