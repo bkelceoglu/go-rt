@@ -42,15 +42,30 @@ func validateSingleIteration(configPath string, cat *config.CatalogSnapshot, r *
 		return domain.Config{}, false, fmt.Errorf("read config %s: %w", configPath, err)
 	}
 	rep, cfg := config.ValidateYAML(raw, cat)
-	printValidationReport(configPath, rep)
 	if !rep.Valid || rep.NeedsAttackerResolution {
+		printValidationIssues(configPath, rep)
 		rc := &repairContext{configPath: configPath, raw: raw, rep: rep, cfg: cfg, cat: cat}
 		return rc.handleInteractiveRepair(r)
 	}
 	if err := checkAndPrintEndpointsHealth(configPath, cfg, r); err != nil {
 		return domain.Config{}, true, err
 	}
+	printValidationSuccess(configPath, rep)
 	return cfg, true, nil
+}
+
+func printValidationSuccess(configPath string, rep config.ValidationReport) {
+	fmt.Printf("%s Configuration %s validated: %s\n", ui.PrefixGort(), ui.Bold(configPath), ui.Badge("PASS"))
+	for i, iss := range rep.Issues {
+		printSingleValidationIssue(i+1, iss)
+	}
+}
+
+func printValidationIssues(configPath string, rep config.ValidationReport) {
+	fmt.Printf("\n%s Configuration Validation Report for %s:\n", ui.PrefixGort(), ui.Bold(configPath))
+	for i, iss := range rep.Issues {
+		printSingleValidationIssue(i+1, iss)
+	}
 }
 
 func checkAndPrintEndpointsHealth(configPath string, cfg domain.Config, r *bufio.Reader) error {
@@ -93,17 +108,6 @@ func printReachabilityRows(results []config.ProviderReachabilityResult) {
 			badge, ui.Bold(res.Role), ui.Cyan(res.ID), ui.Dim(res.BaseURL), res.Message)
 	}
 	fmt.Println()
-}
-
-func printValidationReport(configPath string, rep config.ValidationReport) {
-	if rep.Valid && len(rep.Issues) == 0 {
-		fmt.Printf("%s Configuration %s validated: %s\n", ui.PrefixGort(), ui.Bold(configPath), ui.Badge("PASS"))
-		return
-	}
-	fmt.Printf("\n%s Configuration Validation Report for %s:\n", ui.PrefixGort(), ui.Bold(configPath))
-	for i, iss := range rep.Issues {
-		printSingleValidationIssue(i+1, iss)
-	}
 }
 
 func printSingleValidationIssue(idx int, iss config.ValidationIssue) {

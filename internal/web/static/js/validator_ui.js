@@ -43,15 +43,16 @@ export function bindValidationModalEvents(showToast, refreshMainView) {
 function renderValidationModalContent(container, report, parsedCfg, showToast, onValidatedCallback) {
   const issues = report.issues || [];
   const reachability = report.reachability || [];
-  const isClean = report.valid && issues.length === 0 && !report.needsAttackerResolution;
+  const hasOffline = reachability.some((r) => !r.reachable);
+  const isClean = report.valid && issues.length === 0 && !report.needsAttackerResolution && !hasOffline;
 
   const statusHtml = isClean
     ? `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--accent-emerald); background:rgba(16,185,129,0.08);">
-         <div><strong style="color:var(--accent-emerald);">✓ CONFIGURATION VALID</strong> — All YAML syntax, SQLite catalog IDs, and Attacker LLM logic checks passed.</div>
+         <div><strong style="color:var(--accent-emerald);">✓ CONFIGURATION VALID</strong> — All YAML syntax, SQLite catalog IDs, Attacker LLM logic, and LLM endpoints passed.</div>
          <button id="btn-reval-now" class="btn btn-secondary">↻ Re-Validate</button>
        </div>`
     : `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--accent-amber); background:rgba(245,158,11,0.08);">
-         <div><strong style="color:var(--accent-amber);">⚠ ${issues.length} VALIDATION / LOGIC ISSUE(S) FOUND</strong> — Review findings below or use Auto-Fix.</div>
+         <div><strong style="color:var(--accent-amber);">⚠ VALIDATION FAILED</strong> — ${hasOffline ? "LLM endpoint(s) unreachable" : `${issues.length} issue(s) found`}. Review findings below or use Auto-Fix.</div>
          <button id="btn-reval-now" class="btn btn-secondary">↻ Re-Validate</button>
        </div>`;
 

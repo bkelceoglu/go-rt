@@ -75,6 +75,9 @@ func (s *Server) handleValidateConfig(w http.ResponseWriter, r *http.Request) {
 	rep, cfg := config.ValidateYAML([]byte(req.RawYAML), cat)
 	if req.CheckEndpoint {
 		rep.Reachability = config.CheckProvidersReachability(r.Context(), cfg)
+		if _, hasOffline := config.FirstUnreachableProvider(rep.Reachability); hasOffline {
+			rep.Valid = false
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"report": rep,
