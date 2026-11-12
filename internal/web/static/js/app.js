@@ -102,16 +102,22 @@ async function refreshConfigDropdown() {
   appState.configFiles = data.files || [];
   const sel = document.getElementById("config-file-select");
   const loadBtn = document.getElementById("btn-reload-config");
-  if (appState.configFiles.length === 0) {
+  const files = (appState.configFiles || []).slice();
+  if (appState.activeFile && !files.includes(appState.activeFile)) {
+    files.unshift(appState.activeFile);
+  }
+  if (files.length === 0) {
     sel.innerHTML = `<option value="">(No YAML files on disk)</option>`;
     sel.disabled = true;
     if (loadBtn) loadBtn.disabled = true;
   } else {
     sel.disabled = false;
     if (loadBtn) loadBtn.disabled = false;
-    sel.innerHTML = appState.configFiles
-      .map((f) => `<option value="${f}" ${f === appState.activeFile ? "selected" : ""}>${f}</option>`)
+    const selected = appState.activeFile || files[0];
+    sel.innerHTML = files
+      .map((f) => `<option value="${f}" ${f === selected ? "selected" : ""}>${f}</option>`)
       .join("");
+    sel.value = selected;
   }
 }
 
@@ -148,6 +154,7 @@ async function applyLoadedConfig(filename, rawYaml, report, config, showToast) {
     const editor = document.getElementById("yaml-preview-editor");
     if (editor) editor.value = rawYaml;
   }
+  await refreshConfigDropdown();
   notify();
   renderActiveRoute();
   if (report && (!report.valid || report.needsAttackerResolution)) {
@@ -192,6 +199,10 @@ async function initApp() {
 
   document.getElementById("btn-toggle-yaml").addEventListener("click", () => {
     document.querySelector(".app-shell").classList.toggle("yaml-collapsed");
+  });
+
+  document.getElementById("config-file-select")?.addEventListener("change", (e) => {
+    appState.activeFile = e.target.value;
   });
 
   document.getElementById("btn-reload-config").addEventListener("click", async () => {

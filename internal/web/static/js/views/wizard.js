@@ -65,16 +65,6 @@ export function renderWizardView(container, showToast) {
 function mountStep1General(body) {
   const cfg = appState.config;
   body.innerHTML = `
-    <div class="card" style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-elevated); margin-bottom:12px; padding:10px 14px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:16px;">📂</span>
-        <div>
-          <strong style="font-size:13px;">Load Existing Configuration (.yaml / .yml)</strong>
-          <div style="font-size:11.5px; color:var(--text-secondary);">Browse any YAML file from your computer or select a saved workspace file</div>
-        </div>
-      </div>
-      <button type="button" id="btn-wiz-browse-file" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">📂 Browse Local YAML File...</button>
-    </div>
     <div class="card">
       <div class="card-header"><span class="card-title">1. Assessment Metadata &amp; Template Settings</span></div>
       <div class="form-grid">
@@ -108,9 +98,6 @@ function mountStep1General(body) {
     </div>
   `;
   const bind = (sel, fn) => body.querySelector(sel).addEventListener("input", (e) => { fn(e.target.value); notify(); });
-  body.querySelector("#btn-wiz-browse-file")?.addEventListener("click", () => {
-    document.getElementById("config-file-input")?.click();
-  });
   bind("#inp-desc", (v) => (cfg.description = v));
   bind("#inp-purpose", (v) => (cfg.purpose = v));
   bind("#inp-conc", (v) => (cfg.maxConcurrency = Number(v) || 1));
