@@ -94,6 +94,22 @@ targets:
 	if !strings.Contains(loaded.RawYAML, "Qwen2.5-7B-Instruct") {
 		t.Fatalf("unexpected loaded yaml: %s", loaded.RawYAML)
 	}
+
+	subPayload, _ := json.Marshal(map[string]string{
+		"filename": "subdir/custom_test.yaml",
+		"rawYaml":  yamlContent,
+	})
+	subResp, err := http.Post(baseURL+"/api/configs/save", "application/json", bytes.NewReader(subPayload))
+	if err != nil || subResp.StatusCode != http.StatusOK {
+		t.Fatalf("save subdir config failed: err=%v status=%d", err, subResp.StatusCode)
+	}
+	subResp.Body.Close()
+
+	subLoadResp, err := http.Get(baseURL + "/api/configs/load?file=subdir/custom_test.yaml")
+	if err != nil || subLoadResp.StatusCode != http.StatusOK {
+		t.Fatalf("load subdir config failed: %v", err)
+	}
+	subLoadResp.Body.Close()
 }
 
 func verifyValidateAndAutoFixConfig(t *testing.T, baseURL string) {

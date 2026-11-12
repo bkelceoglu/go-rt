@@ -86,6 +86,8 @@
           <label class="inline-label" for="config-file-select">Saved:</label>
           <select id="config-file-select" class="input-select"></select>
           <button id="btn-reload-config" class="btn btn-secondary" title="Load selected YAML file from disk">Load</button>
+          <input type="file" id="config-file-input" accept=".yaml,.yml" style="display:none;" />
+          <button id="btn-choose-file" class="btn btn-secondary" title="Browse and open any YAML configuration file from your computer">📂 Open File...</button>
           <button id="btn-new-blank-config" class="btn btn-outline" title="Start a fresh blank configuration from scratch">+ Blank Config</button>
           <button id="btn-starter-template" class="btn btn-outline" title="Load recommended pre-filled starter template">⚡ Starter Template</button>
           <button id="btn-toggle-yaml" class="btn btn-outline">Toggle YAML</button>

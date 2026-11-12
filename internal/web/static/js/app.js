@@ -139,6 +139,24 @@ function applyTheme(theme) {
   }
 }
 
+async function applyLoadedConfig(filename, rawYaml, report, config, showToast) {
+  appState.activeFile = filename;
+  appState.config = config;
+  const input = document.getElementById("save-filename-input");
+  if (input) input.value = filename;
+  if (rawYaml) {
+    const editor = document.getElementById("yaml-preview-editor");
+    if (editor) editor.value = rawYaml;
+  }
+  notify();
+  renderActiveRoute();
+  if (report && (!report.valid || report.needsAttackerResolution)) {
+    await openValidationModal(showToast, () => renderActiveRoute());
+  } else {
+    showToast(`Loaded & validated configuration from ${filename}`);
+  }
+}
+
 async function initApp() {
   subscribe(() => updateLiveYAMLPanel());
 
@@ -181,23 +199,35 @@ async function initApp() {
     if (!file) return;
     try {
       const loaded = await loadConfigFile(file);
-      appState.activeFile = loaded.filename;
-      appState.config = loaded.config;
-      document.getElementById("save-filename-input").value = loaded.filename;
-      notify();
-      if (loaded.rawYaml) {
-        document.getElementById("yaml-preview-editor").value = loaded.rawYaml;
-      }
-      renderActiveRoute();
-      if (loaded.report && (!loaded.report.valid || loaded.report.needsAttackerResolution)) {
-        await openValidationModal(showToast, () => renderActiveRoute());
-      } else {
-        showToast(`Loaded & validated configuration from ${loaded.filename}`);
-      }
+      await applyLoadedConfig(loaded.filename, loaded.rawYaml, loaded.report, loaded.config, showToast);
     } catch (err) {
       showToast(`Error loading ${file}: ${err.message}`);
     }
   });
+
+  const fileInput = document.getElementById("config-file-input");
+  const chooseBtn = document.getElementById("btn-choose-file");
+  if (chooseBtn && fileInput) {
+    chooseBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const lower = file.name.toLowerCase();
+      if (!lower.endsWith(".yaml") && !lower.endsWith(".yml")) {
+        showToast("Invalid file type: Please select a .yaml or .yml configuration file.");
+        fileInput.value = "";
+        return;
+      }
+      try {
+        const text = await file.text();
+        const valRes = await validateConfig(text);
+        await applyLoadedConfig(file.name, text, valRes.report, valRes.config, showToast);
+        fileInput.value = "";
+      } catch (err) {
+        showToast(`Failed reading ${file.name}: ${err.message}`);
+      }
+    });
+  }
 
   bindValidationModalEvents(showToast, () => renderActiveRoute());
 

@@ -21,18 +21,33 @@ func (s *Server) handleListConfigs(w http.ResponseWriter, _ *http.Request) {
 }
 
 func listWorkspaceYAMLFiles(dir string) []string {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return []string{}
-	}
 	out := []string{}
-	for _, e := range entries {
-		if isVisibleYAMLFile(e) {
-			out = append(out, e.Name())
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
 		}
-	}
+		if d.IsDir() {
+			if shouldSkipScanDir(d.Name(), path == dir) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isVisibleYAMLFile(d) {
+			if rel, err := filepath.Rel(dir, path); err == nil {
+				out = append(out, rel)
+			}
+		}
+		return nil
+	})
 	slices.Sort(out)
 	return out
+}
+
+func shouldSkipScanDir(name string, isRoot bool) bool {
+	if isRoot {
+		return false
+	}
+	return strings.HasPrefix(name, ".") || name == "vendor" || name == "node_modules" || name == "bin"
 }
 
 func isVisibleYAMLFile(e os.DirEntry) bool {
@@ -175,6 +190,9 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func readWorkspaceFile(workDir, name string) ([]byte, error) {
+	if filepath.IsAbs(name) {
+		return os.ReadFile(name)
+	}
 	root, err := os.OpenRoot(workDir)
 	if err != nil {
 		return nil, err
@@ -184,11 +202,16 @@ func readWorkspaceFile(workDir, name string) ([]byte, error) {
 }
 
 func writeWorkspaceFile(workDir, name string, data []byte) error {
+	if filepath.IsAbs(name) {
+		_ = os.MkdirAll(filepath.Dir(name), 0o755)
+		return os.WriteFile(name, data, 0o644)
+	}
 	root, err := os.OpenRoot(workDir)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = root.Close() }()
+	_ = os.MkdirAll(filepath.Join(workDir, filepath.Dir(name)), 0o755)
 	return root.WriteFile(name, data, 0o644)
 }
 
@@ -204,9 +227,8 @@ func validateAndNormalizeYAML(raw string) ([]byte, error) {
 }
 
 func sanitizeConfigFilename(raw string) string {
-	clean := filepath.Base(strings.TrimSpace(raw))
-	isInvalidBase := clean == "" || clean == "."
-	if isInvalidBase || clean == ".." || clean == "/" {
+	clean := filepath.Clean(strings.TrimSpace(raw))
+	if clean == "" || clean == "." || strings.HasPrefix(clean, "..") {
 		return "config.yaml"
 	}
 	lower := strings.ToLower(clean)
