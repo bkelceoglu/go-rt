@@ -43,19 +43,46 @@ func validateSingleIteration(configPath string, cat *config.CatalogSnapshot, r *
 	}
 	rep, cfg := config.ValidateYAML(raw, cat)
 	printValidationReport(configPath, rep)
-	if !rep.Valid || len(rep.Issues) > 0 || rep.NeedsAttackerResolution {
+	if !rep.Valid || rep.NeedsAttackerResolution {
 		rc := &repairContext{configPath: configPath, raw: raw, rep: rep, cfg: cfg, cat: cat}
 		return rc.handleInteractiveRepair(r)
 	}
-	checkAndPrintEndpointsHealth(cfg)
+	if err := checkAndPrintEndpointsHealth(configPath, cfg, r); err != nil {
+		return domain.Config{}, true, err
+	}
 	return cfg, true, nil
 }
 
-func checkAndPrintEndpointsHealth(cfg domain.Config) {
-	results := config.CheckProvidersReachability(context.Background(), cfg)
-	if len(results) == 0 {
-		return
+func checkAndPrintEndpointsHealth(configPath string, cfg domain.Config, r *bufio.Reader) error {
+	for {
+		results := config.CheckProvidersReachability(context.Background(), cfg)
+		if len(results) == 0 {
+			return nil
+		}
+		printReachabilityRows(results)
+		bad, hasOffline := config.FirstUnreachableProvider(results)
+		if !hasOffline {
+			return nil
+		}
+		if err := promptEndpointRetryOrAbort(configPath, bad, r); err != nil {
+			return err
+		}
 	}
+}
+
+func promptEndpointRetryOrAbort(configPath string, bad config.ProviderReachabilityResult, r *bufio.Reader) error {
+	fmt.Printf("%s %s Validation Failed: LLM endpoint(s) unreachable.\n", ui.PrefixGort(), ui.Badge("FAIL"))
+	fmt.Print("Ensure the LLM service is running and press [y] to re-check, or [N] to abort [y/N]: ")
+	ans := strings.ToLower(readTrimmedLine(r))
+	if ans != "y" && ans != "yes" {
+		return fmt.Errorf("validation failed for %s: %s '%s' (%s) is unreachable (%s)",
+			configPath, bad.Role, bad.ID, bad.BaseURL, bad.Message)
+	}
+	fmt.Printf("%s Re-checking LLM endpoint reachability...\n", ui.PrefixGort())
+	return nil
+}
+
+func printReachabilityRows(results []config.ProviderReachabilityResult) {
 	fmt.Printf("\n%s Pre-flight LLM Endpoint Reachability:\n", ui.PrefixGort())
 	for _, res := range results {
 		badge := ui.Badge("PASS")
@@ -173,7 +200,7 @@ func confirmAndPersistFix(configPath string, res config.AutoFixResult, r *bufio.
 	fmt.Printf("Confirm & apply these fixes to %s? [y/N]: ", configPath)
 	ans := strings.ToLower(readTrimmedLine(r))
 	if ans != "y" && ans != "yes" {
-		return res.Config, true, nil
+		return domain.Config{}, true, fmt.Errorf("validation incomplete for %s: proposed fixes were not applied. Please complete validation before running", configPath)
 	}
 	if err := os.WriteFile(configPath, []byte(res.FixedYAML), 0o644); err != nil {
 		return domain.Config{}, false, fmt.Errorf("write fixed config %s: %w", configPath, err)
@@ -188,10 +215,7 @@ func (rc *repairContext) promptManualRevalidate(r *bufio.Reader) (domain.Config,
 	if ans == "y" || ans == "yes" {
 		return domain.Config{}, false, nil
 	}
-	if rc.rep.Valid {
-		return rc.cfg, true, nil
-	}
-	return domain.Config{}, true, fmt.Errorf("configuration %s failed validation", rc.configPath)
+	return domain.Config{}, true, fmt.Errorf("validation incomplete for %s: please resolve validation issues before running", rc.configPath)
 }
 
 func readTrimmedLine(r *bufio.Reader) string {

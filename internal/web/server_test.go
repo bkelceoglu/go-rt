@@ -242,7 +242,42 @@ func verifyAssessmentAndLogEndpoints(t *testing.T, baseURL string) {
 	verifyAssessmentStopWhenIdle(t, baseURL)
 	verifyLogsTailEndpoint(t, baseURL)
 	verifyAssessmentStartInvalid(t, baseURL)
+	verifyAssessmentStartInvalidYAML(t, baseURL)
 	verifyAssessmentStartUnreachableTarget(t, baseURL)
+	verifyAssessmentStartUnreachableJudge(t, baseURL)
+}
+
+func verifyAssessmentStartInvalidYAML(t *testing.T, baseURL string) {
+	yamlContent := `version: "1.0"
+targets:
+  - id: custom:mock
+    baseUrl: http://127.0.0.1:59998
+strategies:
+  - id: gort:strategy:crescendo
+`
+	body := strings.NewReader(fmt.Sprintf(`{"rawYaml": %q}`, yamlContent))
+	resp, err := http.Post(baseURL+"/api/assessments/start", "application/json", body)
+	if err != nil || resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for config requiring missing attacker, got status=%v err=%v", resp, err)
+	}
+	resp.Body.Close()
+}
+
+func verifyAssessmentStartUnreachableJudge(t *testing.T, baseURL string) {
+	yamlContent := `version: "1.0"
+targets:
+  - id: custom:mock
+    baseUrl: http://127.0.0.1:59998
+judge:
+  id: custom:judge
+  baseUrl: http://127.0.0.1:59999
+`
+	body := strings.NewReader(fmt.Sprintf(`{"rawYaml": %q}`, yamlContent))
+	resp, err := http.Post(baseURL+"/api/assessments/start", "application/json", body)
+	if err != nil || resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for unreachable judge, got status=%v err=%v", resp, err)
+	}
+	resp.Body.Close()
 }
 
 func verifyAssessmentStatusInitial(t *testing.T, baseURL string) {

@@ -187,7 +187,7 @@ async function onStartAssessment() {
       payload.configFile = configSel;
     }
     const valRes = await validateConfig(yamlToCheck, true);
-    if (!valRes.report.valid || valRes.report.needsAttackerResolution) {
+    if (!valRes.report.valid || (valRes.report.issues || []).length > 0 || valRes.report.needsAttackerResolution) {
       document.getElementById("yaml-preview-editor").value = yamlToCheck;
       await openValidationModal(showToastFn);
       resetStartButton();
@@ -195,14 +195,14 @@ async function onStartAssessment() {
     }
 
     const unreachable = (valRes.report.reachability || []).filter(
-      (r) => r.role.startsWith("target") && !r.reachable
+      (r) => !r.reachable
     );
     if (unreachable.length > 0) {
-      const details = unreachable.map((t) => `${t.id} (${t.baseUrl}): ${t.message}`).join("; ");
-      showToastFn(`Pre-flight check failed: Target offline (${details})`);
-      appendLog(`[ERROR] Pre-flight reachability check failed! Target server is unreachable.`);
+      const details = unreachable.map((t) => `[${t.role}] ${t.id} (${t.baseUrl}): ${t.message}`).join("; ");
+      showToastFn(`Pre-flight check failed: LLM endpoint offline (${details})`);
+      appendLog(`[ERROR] Pre-flight reachability check failed! Required LLM service is unreachable.`);
       appendLog(`[ERROR] Details: ${details}`);
-      appendLog(`[HINT] Start your target runtime (e.g. 'llama-server' or Ollama) before launching.`);
+      appendLog(`[HINT] Start your LLM runtime (e.g. 'llama-server' or Ollama) before launching.`);
       resetStartButton();
       return;
     }

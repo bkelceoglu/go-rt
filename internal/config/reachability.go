@@ -34,6 +34,16 @@ func CheckProvidersReachability(ctx context.Context, cfg domain.Config) []Provid
 	return appendJudgeReachability(ctx, results, cfg.Judge)
 }
 
+// FirstUnreachableProvider returns the first unreachable provider result and true if any endpoint is offline.
+func FirstUnreachableProvider(results []ProviderReachabilityResult) (ProviderReachabilityResult, bool) {
+	for _, r := range results {
+		if !r.Reachable {
+			return r, true
+		}
+	}
+	return ProviderReachabilityResult{}, false
+}
+
 func appendJudgeReachability(ctx context.Context, results []ProviderReachabilityResult, judge domain.JudgeSpec) []ProviderReachabilityResult {
 	if strings.TrimSpace(judge.ID) == "" {
 		return results

@@ -16,6 +16,7 @@ import (
 
 	"github.com/caveman/go-rt/internal/config"
 	"github.com/caveman/go-rt/internal/domain"
+	"github.com/caveman/go-rt/internal/plugin"
 	"github.com/caveman/go-rt/internal/telemetry"
 )
 
@@ -48,9 +49,9 @@ func (s *Server) extractStartAssessmentParams(r *http.Request) (startAssessmentR
 	if err != nil {
 		return req, nil, err
 	}
-	cfg, err := s.resolveAssessmentConfig(req)
+	cfg, err := s.resolveAndValidateConfig(r.Context(), req)
 	if err != nil {
-		return req, nil, fmt.Errorf("config error: %w", err)
+		return req, nil, err
 	}
 	return req, cfg, nil
 }
@@ -60,10 +61,8 @@ func validateTargetEndpoints(ctx context.Context, cfg *domain.Config, skip bool)
 		return nil
 	}
 	results := config.CheckProvidersReachability(ctx, *cfg)
-	for _, res := range results {
-		if strings.HasPrefix(res.Role, "target") && !res.Reachable {
-			return fmt.Errorf("target '%s' (%s) unreachable: %s", res.ID, res.BaseURL, res.Message)
-		}
+	if bad, hasOffline := config.FirstUnreachableProvider(results); hasOffline {
+		return fmt.Errorf("%s '%s' (%s) unreachable: %s", bad.Role, bad.ID, bad.BaseURL, bad.Message)
 	}
 	return nil
 }
@@ -98,22 +97,41 @@ func (s *Server) handleGetAssessmentStatus(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, s.manager.Status())
 }
 
-func (s *Server) resolveAssessmentConfig(req startAssessmentRequest) (*domain.Config, error) {
-	if strings.TrimSpace(req.RawYAML) != "" {
-		cfg, err := config.ParseBytes([]byte(req.RawYAML))
-		return &cfg, err
+func (s *Server) resolveAndValidateConfig(ctx context.Context, req startAssessmentRequest) (*domain.Config, error) {
+	raw, err := s.loadRawConfigBytes(req)
+	if err != nil {
+		return nil, err
 	}
-	return s.loadConfigFromFile(req.ConfigFile)
+	cat := plugin.BuildCatalogSnapshot(ctx, s.db)
+	rep, cfg := config.ValidateYAML(raw, cat)
+	if !rep.Valid || rep.NeedsAttackerResolution {
+		return nil, formatValidationFailureError(rep)
+	}
+	return &cfg, nil
 }
 
-func (s *Server) loadConfigFromFile(filename string) (*domain.Config, error) {
-	filename = cmp.Or(filename, "config.yaml")
+func (s *Server) loadRawConfigBytes(req startAssessmentRequest) ([]byte, error) {
+	if strings.TrimSpace(req.RawYAML) != "" {
+		return []byte(req.RawYAML), nil
+	}
+	filename := cmp.Or(req.ConfigFile, "config.yaml")
 	raw, err := readWorkspaceFile(s.workDir, sanitizeConfigFilename(filename))
 	if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", filename, err)
 	}
-	cfg, err := config.ParseBytes(raw)
-	return &cfg, err
+	return raw, nil
+}
+
+func formatValidationFailureError(rep config.ValidationReport) error {
+	if rep.NeedsAttackerResolution {
+		return fmt.Errorf("validation failed: active strategies %v require an Attacker LLM", rep.AttackerDependentStrategies)
+	}
+	for _, iss := range rep.Issues {
+		if iss.Severity == config.IssueError {
+			return fmt.Errorf("validation failed: [%s] %s (%s)", iss.Code, iss.Field, iss.Message)
+		}
+	}
+	return errors.New("configuration validation failed: please resolve issues before running")
 }
 
 func (s *Server) handleGetLogsTail(w http.ResponseWriter, r *http.Request) {
