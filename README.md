@@ -68,7 +68,7 @@ flowchart TB
     end
 
     subgraph Supply["2. DUAL PROMPT SUPPLY & STRATEGY PIPELINE"]
-        DBBank[("SQLite prompt_bank\n20 Datasets (~8,256 Prompts)")]
+        DBBank[("SQLite prompt_bank\n21 Datasets (17,500+ Prompts)")]
         Catalog[("SQLite plugins & collections\n155 Plugins + 14 Collections")]
         Synth["Attacker LLM Synthesizer\n(internal/plugin)"]
         Strat["Strategy Pipeline (internal/strategy)\nbase64 | rot13 | hex | leetspeak | homoglyph\njailbreak-templates | layer | crescendo | goat | hydra"]
