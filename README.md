@@ -8,6 +8,24 @@ It combines **21 curated adversarial benchmark datasets (17,500+ deduplicated pr
 
 ---
 
+## Why GORT? (Local-First Attacker LLM & Hybrid Engine)
+
+Most AI red-teaming tools force a trade-off between static vulnerability scanners, heavy Python/Node.js scripting frameworks, or cloud-hosted attack synthesis APIs. **GORT** delivers a **built-in, 100% local/air-gapped Attacker LLM** and a **21-dataset benchmark bank** inside a single zero-CGO Go binary:
+
+- **Zero-Runtime Local Attacker LLM:** Point GORT directly at your local `llama.cpp`, `Ollama`, `vLLM`, or `LocalAI` endpoint to dynamically synthesize context-aware, multilingual (`en`, `tr`, etc.) attacks across 155 plugins and multi-turn `Crescendo` / `GOAT` / `Hydra` loops — no Python/Node.js runtime or cloud synthesis API required.
+- **Sequential Shared-LLM Lock (`SequentialSharedLLM`):** Running on a single GPU or resource-constrained workstation? GORT can safely serialize a single local LLM to serve as both **Attacker** and **Judge** sequentially without memory contention or deadlocks.
+- **Unified Hybrid Pipeline:** Seamlessly switch between curated benchmark runs (`gort <dataset>`), dynamic Attacker LLM synthesis (`gort config.yaml`), and the embedded Web Command Center (`gort view`) using the same SQLite + OpenTelemetry store.
+
+| Feature | GORT (`go-rt`) | Garak (NVIDIA) | PyRIT (Microsoft) | Promptfoo |
+|---|---|---|---|---|
+| **Deployment** | Single `CGO_ENABLED=0` Go Binary | Python + Pip Dependencies | Python Orchestration Library | Node.js CLI + Dependencies |
+| **Built-in Attacker LLM** | Native & 100% Local/Air-Gapped | Static Probes + Buffs (Primarily) | Native (Requires Python Code) | Dynamic (Often Cloud Synthesis API) |
+| **Single-GPU Shared Attacker/Judge Lock** | Built-in (`SequentialSharedLLM`) | N/A | Manual | Manual |
+| **Curated Prompt Bank** | 21 Datasets (17,500+ Prompts) in SQLite | Built-in Static Probes | External/Manual Datasets | Plugin-based Generation |
+| **Embedded Web UI & Live SSE Studio** | Built-in (`gort view`) | No | No | Local Web Viewer |
+
+---
+
 ## Key Capabilities
 
 1. **Zero-CGO Single Binary & GORM + Pure-Go SQLite (`.gort/gort.db`):**
