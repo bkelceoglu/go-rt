@@ -20,9 +20,10 @@ coverage.txt
 .env
 .env.*
 
-# Generated Reports, PDFs & Local Scratch Backups
+# Generated Reports, PDFs, Internal Docs & Local Scratch Backups
 *.pdf
 backup/
+docs/
 
 # OS & IDE Files
 .DS_Store

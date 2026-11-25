@@ -4,8 +4,6 @@
 
 It combines **21 curated adversarial benchmark datasets (17,500+ deduplicated prompts)**, **155 built-in red-teaming plugins**, **14 industry compliance collections**, **static & multi-turn agentic attack strategies (`Crescendo`, `GOAT`, `Hydra`)**, and **GORM + Pure-Go SQLite (`.gort/gort.db`)** persistence with zero external runtime dependencies.
 
-> **Step-by-Step Practical Guide:** See [**`docs/HOWTO.md`**](docs/HOWTO.md) for hands-on recipes, provider configurations (llama.cpp `:8080`, OpenAI, vLLM, Ollama, LocalAI, Custom REST Webhooks), and SQLite analytics queries.
-
 ---
 
 ## Why GORT? (Local-First Attacker LLM & Hybrid Engine)
@@ -245,10 +243,6 @@ go-rt/
 │   ├── template/              # Two-phase SSTI-safe cryptographic boundary template renderer
 │   ├── ui/                    # Zero-dependency TTY/NO_COLOR-aware ANSI styling and column alignment
 │   └── web/                   # Embedded Web Command Center (//go:embed static), REST APIs, SSE & reports
-├── docs/
-│   ├── HOWTO.md               # Comprehensive step-by-step usage & configuration guide
-│   ├── MASTER_PLAN.md         # Architectural blueprint
-│   └── brain/                 # Shared Brain state (CONTEXT.md, TASKS.md, DECISIONS.md)
 ├── prompts/                   # Exported CSV mirrors of all 21 benchmark datasets
 ├── attack_test/               # Ready-to-run strategy YAML configurations
 └── Makefile                   # Build, dist cross-compile, test, vet, and clean targets
