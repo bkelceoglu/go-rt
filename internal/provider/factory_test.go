@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 func TestBuildFromSpecAndBuildJudge(t *testing.T) {

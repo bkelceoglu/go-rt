@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 // NamedDataset represents a named prompt set retrieved from SQLite prompt_bank.

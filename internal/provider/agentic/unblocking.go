@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/grader"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/grader"
 )
 
 var clarifyingMarkers = []string{

@@ -1,4 +1,4 @@
-module github.com/caveman/go-rt
+module github.com/bkelceoglu/go-rt
 
 go 1.27.0
 

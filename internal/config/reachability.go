@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // ProviderReachabilityResult holds health and latency info for a single provider.

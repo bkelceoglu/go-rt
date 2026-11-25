@@ -8,7 +8,7 @@ import (
 	"maps"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // GenerateTraceID generates a standard W3C 16-byte (32-character hex) trace ID.

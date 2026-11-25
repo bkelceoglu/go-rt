@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caveman/go-rt/internal/config"
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/plugin"
-	"github.com/caveman/go-rt/internal/telemetry"
+	"github.com/bkelceoglu/go-rt/internal/config"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/plugin"
+	"github.com/bkelceoglu/go-rt/internal/telemetry"
 )
 
 type startAssessmentRequest struct {

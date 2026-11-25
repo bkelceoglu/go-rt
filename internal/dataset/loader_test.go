@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 func TestResolveNamedDatasetAndAllFromSQLite(t *testing.T) {

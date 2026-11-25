@@ -3,9 +3,9 @@ package plugin
 import (
 	"context"
 
-	"github.com/caveman/go-rt/internal/config"
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/config"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 // All returns the complete sorted catalog of built-in redteam plugins from SQLite.

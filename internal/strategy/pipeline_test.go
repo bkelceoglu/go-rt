@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 func TestJailbreakTemplatesAndLayerChaining(t *testing.T) {

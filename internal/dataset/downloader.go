@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/store"
 	"golang.org/x/sync/errgroup"
 )
 

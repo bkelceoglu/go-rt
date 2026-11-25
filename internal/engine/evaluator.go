@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/grader"
-	"github.com/caveman/go-rt/internal/telemetry"
-	"github.com/caveman/go-rt/internal/template"
-	"github.com/caveman/go-rt/internal/ui"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/grader"
+	"github.com/bkelceoglu/go-rt/internal/telemetry"
+	"github.com/bkelceoglu/go-rt/internal/template"
+	"github.com/bkelceoglu/go-rt/internal/ui"
 	"golang.org/x/sync/errgroup"
 )
 

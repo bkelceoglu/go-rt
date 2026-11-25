@@ -12,21 +12,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caveman/go-rt/internal/dataset"
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/engine"
-	"github.com/caveman/go-rt/internal/plugin"
-	"github.com/caveman/go-rt/internal/provider"
-	"github.com/caveman/go-rt/internal/store"
-	"github.com/caveman/go-rt/internal/strategy"
-	"github.com/caveman/go-rt/internal/telemetry"
-	"github.com/caveman/go-rt/internal/template"
-	"github.com/caveman/go-rt/internal/ui"
-	"github.com/caveman/go-rt/internal/web"
+	"github.com/bkelceoglu/go-rt/internal/dataset"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/engine"
+	"github.com/bkelceoglu/go-rt/internal/plugin"
+	"github.com/bkelceoglu/go-rt/internal/provider"
+	"github.com/bkelceoglu/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/strategy"
+	"github.com/bkelceoglu/go-rt/internal/telemetry"
+	"github.com/bkelceoglu/go-rt/internal/template"
+	"github.com/bkelceoglu/go-rt/internal/ui"
+	"github.com/bkelceoglu/go-rt/internal/web"
 )
 
+var version = "0.1.0-dev"
+
 const (
-	version           = "0.1.0-dev"
 	defaultPromptsDir = "prompts"
 	defaultSQLitePath = ".gort/gort.db"
 )

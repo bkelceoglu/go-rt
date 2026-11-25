@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 const (

@@ -3,7 +3,7 @@ package template_test
 import (
 	"testing"
 
-	"github.com/caveman/go-rt/internal/template"
+	"github.com/bkelceoglu/go-rt/internal/template"
 )
 
 func TestExtractVariablesAndResolveInjectVar(t *testing.T) {

@@ -7,7 +7,7 @@
 ## 1. Güncel Durum Özeti
 - **Aktif Faz:** Faz 0..8 Tamamlandı ✅ (CLI Motoru, Web Command Center, YAML Doğrulama, Çift Katmanlı Auto-Fix & Go 1.27 `golang-pro` Modernizasyonu %100 Hazır)
 - **Go Sürümü:** `go1.27.0 linux/amd64` (`CGO_ENABLED=0`) — Modern Go 1.27 deyimleri (`os.OpenRoot`, `synctest`, `t.Context()`, `wg.Go()`, `strings.SplitSeq`/`FieldsSeq`/`CutLast`/`CutPrefix`, `slices.Sorted(maps.Keys)`, `new(expr)`, `json:"...,omitzero"`, `atomic.Bool`, compile-time interface guards) tüm paketlerde aktif.
-- **Modül Adı:** `github.com/caveman/go-rt`
+- **Modül Adı:** `github.com/bkelceoglu/go-rt`
 - **SQLite Durumu (`.gort/gort.db`):**
   - `plugins`: **155 yerleşik plugin** (`gort:plugin:*`)
   - `plugin_collections`: **14 hazır koleksiyon** (`gort:collection:*`)

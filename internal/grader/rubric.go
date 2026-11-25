@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // RubricGrader uses an LLM-as-a-Judge provider to evaluate target safety.

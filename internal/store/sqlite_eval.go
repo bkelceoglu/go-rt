@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

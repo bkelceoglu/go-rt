@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // DefaultLogPath is the default append-only live log file for tail -f monitoring.

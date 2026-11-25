@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 	"gopkg.in/yaml.v3"
 )
 

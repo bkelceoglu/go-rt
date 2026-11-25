@@ -3,7 +3,7 @@ package provider
 import (
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // BuildFromSpec constructs a concrete Provider (Webhook or OpenAI-compatible) wrapped in RateLimiter.

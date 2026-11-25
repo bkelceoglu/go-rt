@@ -2,7 +2,7 @@
 
 **GORT** (`gort`) is a self-contained, zero-CGO (`CGO_ENABLED=0`), single-binary AI Red Teaming, Adversarial Probing, and OpenTelemetry-native Evaluation Engine written in **Go 1.27+**.
 
-It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated prompts)**, **155 built-in red-teaming plugins**, **14 industry compliance collections**, **static & multi-turn agentic attack strategies (`Crescendo`, `GOAT`, `Hydra`)**, and **GORM + Pure-Go SQLite (`.gort/gort.db`)** persistence with zero external runtime dependencies.
+It combines **21 curated adversarial benchmark datasets (17,500+ deduplicated prompts)**, **155 built-in red-teaming plugins**, **14 industry compliance collections**, **static & multi-turn agentic attack strategies (`Crescendo`, `GOAT`, `Hydra`)**, and **GORM + Pure-Go SQLite (`.gort/gort.db`)** persistence with zero external runtime dependencies.
 
 > **Step-by-Step Practical Guide:** See [**`docs/HOWTO.md`**](docs/HOWTO.md) for hands-on recipes, provider configurations (llama.cpp `:8080`, OpenAI, vLLM, Ollama, LocalAI, Custom REST Webhooks), and SQLite analytics queries.
 
@@ -16,7 +16,7 @@ It combines **20 curated adversarial benchmark datasets (~8,250+ deduplicated pr
    - Zero external database servers required.
 2. **Dual Prompt Supply Architecture:**
    - **Mode A — Curated Benchmark Datasets (`gort <dataset_name>` or `gort all`):**
-     Automatically downloads, normalizes, and caches **20 named datasets (~8,256 prompts)** from HuggingFace, GitHub, OWASP, HarmBench, AdvBench, BeaverTails, NVIDIA Aegis, LibrAI DoNotAnswer, Lakera Gandalf, CyberSecEval, InjecAgent, BIPIA, and XSTest directly into SQLite `prompt_bank` and `./prompts/*.csv`.
+     Automatically downloads, normalizes, and caches **21 named datasets (17,500+ prompts)** from HuggingFace, GitHub, OWASP, Pliny L1B3RT4S, HarmBench, AdvBench, BeaverTails, NVIDIA Aegis, LibrAI DoNotAnswer, Lakera Gandalf, CyberSecEval, InjecAgent, BIPIA, and XSTest directly into SQLite `prompt_bank` and `./prompts/*.csv`.
    - **Mode B — Dynamic Attacker LLM Synthesis (`gort config.yaml`):**
      Uses an Attacker LLM to synthesize context-aware, multilingual (`en`, `tr`, etc.) adversarial test cases tailored to your system's `purpose` across **155 plugins** and **14 preset collections** (after explicit `[y/N]` user confirmation).
 3. **28 Built-in Attack Strategies (`gort:strategy:*`):**
@@ -76,18 +76,34 @@ flowchart TB
 
 ---
 
-## Quick Start
+## Installation & Distribution
 
-### 1. Build the Single Binary (`CGO_ENABLED=0`)
+### Option 1: Install via Go (`go install`)
 ```bash
+go install github.com/bkelceoglu/go-rt/cmd/gort@latest
+```
+
+### Option 2: Pre-built Binaries (GitHub Releases)
+Download the zero-CGO standalone binary for **Linux (`amd64`/`arm64`)**, **macOS (`amd64`/`arm64`)**, or **Windows (`amd64`)** from the [Releases](https://github.com/bkelceoglu/go-rt/releases) page.
+
+### Option 3: Build from Source (`CGO_ENABLED=0`)
+```bash
+git clone https://github.com/bkelceoglu/go-rt.git
+cd go-rt
 make build
 # Or run full format, vet, unit test, and build pipeline:
 make all
+# Or cross-compile distribution binaries + SHA256 checksums into dist/:
+make dist
 ```
 
-### 2. Explore Built-in Datasets & 155 Plugins (100% Offline)
+---
+
+## Quick Start
+
+### 1. Explore Built-in Datasets & 155 Plugins (100% Offline)
 ```bash
-# List all 20 named prompt datasets in SQLite prompt_bank
+# List all 21 named prompt datasets in SQLite prompt_bank
 ./bin/gort ls
 
 # Inspect prompts inside a dataset by index or name as a formatted terminal table
@@ -215,7 +231,13 @@ go-rt/
 │   ├── HOWTO.md               # Comprehensive step-by-step usage & configuration guide
 │   ├── MASTER_PLAN.md         # Architectural blueprint
 │   └── brain/                 # Shared Brain state (CONTEXT.md, TASKS.md, DECISIONS.md)
-├── prompts/                   # Exported CSV mirrors of all 20 benchmark datasets
-├── config.yaml                # Ready-to-run enterprise configuration (LocalAI :8090 default)
-└── Makefile                   # Build, test, vet, and clean targets
+├── prompts/                   # Exported CSV mirrors of all 21 benchmark datasets
+├── attack_test/               # Ready-to-run strategy YAML configurations
+└── Makefile                   # Build, dist cross-compile, test, vet, and clean targets
 ```
+
+---
+
+## License
+
+Licensed under the [MIT License](LICENSE).

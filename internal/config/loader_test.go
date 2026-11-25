@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/caveman/go-rt/internal/config"
+	"github.com/bkelceoglu/go-rt/internal/config"
 )
 
 func TestParseBytesAndDefaults(t *testing.T) {

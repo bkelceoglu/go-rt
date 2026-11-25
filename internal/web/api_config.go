@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/config"
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/plugin"
-	"github.com/caveman/go-rt/internal/provider"
+	"github.com/bkelceoglu/go-rt/internal/config"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/plugin"
+	"github.com/bkelceoglu/go-rt/internal/provider"
 	"gopkg.in/yaml.v3"
 )
 

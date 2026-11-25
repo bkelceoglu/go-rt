@@ -3,8 +3,8 @@ package template_test
 import (
 	"testing"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/template"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/template"
 )
 
 func TestSafeRendererPreventsCrossVarSSTI(t *testing.T) {

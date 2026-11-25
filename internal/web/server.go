@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 //go:embed static

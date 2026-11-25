@@ -1,10 +1,32 @@
+# Binaries & Distribution Artifacts
 bin/
 dist/
+*.exe
+*.dll
+*.so
+*.dylib
 *.out
 *.test
+coverage.txt
+
+# Local Runtime State & SQLite Databases
 *.db
 *.db-shm
 *.db-wal
 .gort/
+*.log
+
+# Environment & Secrets
 .env
+.env.*
+
+# Generated Reports, PDFs & Local Scratch Backups
 *.pdf
+backup/
+
+# OS & IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

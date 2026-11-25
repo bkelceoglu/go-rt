@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 var _ domain.Provider = (*mockAttacker)(nil)

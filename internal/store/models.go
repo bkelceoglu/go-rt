@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // PluginRecord represents a row in the SQLite plugins table managed by GORM.

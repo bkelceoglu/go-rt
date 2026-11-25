@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/store"
 )
 
 // Synthesizer generates adversarial test cases dynamically using an Attacker LLM provider.

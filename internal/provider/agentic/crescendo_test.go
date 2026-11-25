@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 var _ domain.Provider = (*scriptedProvider)(nil)

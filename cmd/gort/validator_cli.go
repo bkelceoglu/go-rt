@@ -10,11 +10,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caveman/go-rt/internal/config"
-	"github.com/caveman/go-rt/internal/domain"
-	"github.com/caveman/go-rt/internal/plugin"
-	"github.com/caveman/go-rt/internal/store"
-	"github.com/caveman/go-rt/internal/ui"
+	"github.com/bkelceoglu/go-rt/internal/config"
+	"github.com/bkelceoglu/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/plugin"
+	"github.com/bkelceoglu/go-rt/internal/store"
+	"github.com/bkelceoglu/go-rt/internal/ui"
 )
 
 type repairContext struct {

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 // ConversationMemory manages active multi-turn dialogue state and backtracked audit history.

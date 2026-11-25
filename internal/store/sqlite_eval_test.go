@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caveman/go-rt/internal/domain"
+	"github.com/bkelceoglu/go-rt/internal/domain"
 )
 
 func TestSQLiteResultStoreE2E(t *testing.T) {
